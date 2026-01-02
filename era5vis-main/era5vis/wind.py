@@ -97,7 +97,7 @@ def _find_highest_terrain_downwind(downwind_lats, downwind_lons, terrain_ds, pre
     )
     
     # Create interpolator for aspect
-    terrain_aspect_vals = terrain_ds['aspect'].values
+    terrain_aspect_vals = terrain_ds['aspect_deg'].values
     interp_aspect = RegularGridInterpolator(
         (terrain_lats[::-1], terrain_lons),
         terrain_aspect_vals[::-1, :],
@@ -186,6 +186,10 @@ def perpendicular_wind_component(wind_dir, wind_speed, slope_aspect):
     else:
         # Wind is blowing away from the slope
         perpendicular_wind_speed = 0
+
+    ##final check
+    if perpendicular_wind_speed < 0 or perpendicular_wind_speed > wind_speed:
+        raise ValueError("Computed perpendicular wind speed is out of valid range.")
     
     return np.round(perpendicular_wind_speed,2)
 
@@ -194,7 +198,7 @@ def perpendicular_wind_component(wind_dir, wind_speed, slope_aspect):
 def compute_wind_terrain_interaction(
     era5_data: xr.Dataset,
     terrain_ds: xr.Dataset,
-    range_km: float = 10.0
+    range_km: float = 1.0
 ) -> xr.Dataset:
     """
     Compute wind-terrain interaction metrics using terrain search in downwind direction.
@@ -224,7 +228,7 @@ def compute_wind_terrain_interaction(
         - wind_speed: Wind speed at gridpoint
         - wind_direction: Wind direction (where wind comes FROM)
         - downwind_terrain_height: Height of first terrain above pressure level
-        - wind_slope_angle: Angle between wind and slope aspect
+    
     """
     
     # Get wind components - keep as xarray DataArrays
@@ -241,8 +245,7 @@ def compute_wind_terrain_interaction(
     z = era5_data['z']
     
     # Compute wind speed and direction with xarray operations
-    wind_speed = np.sqrt(u**2 + v**2)
-    wind_dir = np.arctan2(-u, -v)  # radians, 0=N, π/2=E (meteorological convention)
+    wind_dir, wind_speed = calc_wind(u, v)
     
     # Convert geopotential to geometric height in meters
     height_at_level = z / G
@@ -260,15 +263,15 @@ def compute_wind_terrain_interaction(
     downwind_terrain_heights = wind_speed.copy(deep=True)
     downwind_terrain_heights[:] = np.nan
     
-    wind_slope_angles = wind_speed.copy(deep=True)
-    wind_slope_angles[:] = np.nan
+    perpendicular_winds = wind_speed.copy(deep=True)
+    perpendicular_winds[:] = np.nan
     
     # Define computation for a single point
     def compute_point(u_val, v_val, z_val, lat, lon):
         """Compute metrics for a single gridpoint."""
         # Extract scalar values
-        wind_speed_pt = float(np.sqrt(u_val**2 + v_val**2))
-        wind_dir_pt = float(np.arctan2(-u_val, -v_val))
+        wind_dir_pt, wind_speed_pt  = calc_wind(u_val, v_val)
+      
         pressure_height_pt = float(z_val / G)
         
         # Skip if wind speed is too small or invalid
@@ -289,11 +292,14 @@ def compute_wind_terrain_interaction(
         
         # Calculate angle if terrain found
         if not np.isnan(terrain_aspect):
-            angle = _compute_wind_slope_angle(wind_dir_pt, terrain_aspect)
+            #angle = _compute_wind_slope_angle(wind_dir_pt, terrain_aspect)
+            perpendicular_wind = perpendicular_wind_component(wind_dir_pt, wind_speed_pt, terrain_aspect)
+
         else:
-            angle = np.nan
+            #angle = np.nan
+            perpendicular_wind = np.nan
         
-        return terrain_height, angle
+        return terrain_height, perpendicular_wind
     
     # Convert to numpy for faster indexed access
     u_np = u.values
@@ -311,60 +317,26 @@ def compute_wind_terrain_interaction(
                         v_val = float(v_np[t_idx, p_idx, lat_idx, lon_idx])
                         z_val = float(z_np[t_idx, p_idx, lat_idx, lon_idx])
                         
-                        terrain_h, angle = compute_point(u_val, v_val, z_val, lat, lon)
+                        terrain_h, perpendicular_wind = compute_point(u_val, v_val, z_val, lat, lon)
                         
                         downwind_terrain_heights.values[t_idx, p_idx, lat_idx, lon_idx] = terrain_h
-                        wind_slope_angles.values[t_idx, p_idx, lat_idx, lon_idx] = angle
-    elif has_time:
-        # 2D case with time: (valid_time, latitude, longitude)
-        for t_idx in range(len(valid_times)):
-            for lat_idx, lat in enumerate(era_lats):
-                for lon_idx, lon in enumerate(era_lons):
-                    u_val = float(u_np[t_idx, lat_idx, lon_idx])
-                    v_val = float(v_np[t_idx, lat_idx, lon_idx])
-                    z_val = float(z_np[t_idx, lat_idx, lon_idx])
-                    
-                    terrain_h, angle = compute_point(u_val, v_val, z_val, lat, lon)
-                    
-                    downwind_terrain_heights.values[t_idx, lat_idx, lon_idx] = terrain_h
-                    wind_slope_angles.values[t_idx, lat_idx, lon_idx] = angle
-    elif has_pressure:
-        # 3D case: (pressure_level, latitude, longitude)
-        for p_idx in range(len(pressure_levels)):
-            for lat_idx, lat in enumerate(era_lats):
-                for lon_idx, lon in enumerate(era_lons):
-                    u_val = float(u_np[p_idx, lat_idx, lon_idx])
-                    v_val = float(v_np[p_idx, lat_idx, lon_idx])
-                    z_val = float(z_np[p_idx, lat_idx, lon_idx])
-                    
-                    terrain_h, angle = compute_point(u_val, v_val, z_val, lat, lon)
-                    
-                    downwind_terrain_heights.values[p_idx, lat_idx, lon_idx] = terrain_h
-                    wind_slope_angles.values[p_idx, lat_idx, lon_idx] = angle
-    else:
-        # 2D case: (latitude, longitude)
-        for lat_idx, lat in enumerate(era_lats):
-            for lon_idx, lon in enumerate(era_lons):
-                u_val = float(u_np[lat_idx, lon_idx])
-                v_val = float(v_np[lat_idx, lon_idx])
-                z_val = float(z_np[lat_idx, lon_idx])
-                
-                terrain_h, angle = compute_point(u_val, v_val, z_val, lat, lon)
-                
-                downwind_terrain_heights.values[lat_idx, lon_idx] = terrain_h
-                wind_slope_angles.values[lat_idx, lon_idx] = angle
+                        perpendicular_winds.values[t_idx, p_idx, lat_idx, lon_idx] = perpendicular_wind
+    
     
     # Add all variables to result dataset
     result = era5_data.copy()
+
+    result['perpendicular_wind_speed'] = perpendicular_winds
+    result['perpendicular_wind_speed'].attrs = {'units': 'm/s', 'long_name': 'perpendicular wind speed'}
     
     result['wind_speed'] = wind_speed
     result['wind_speed'].attrs = {'units': 'm/s', 'long_name': 'Wind speed'}
     
-    #result['wind_direction'] = wind_dir
-    #result['wind_direction'].attrs = {
-    #    'units': 'radians',
-    #    'long_name': 'Wind direction (where wind comes FROM, 0=N, π/2=E)'
-    #}
+    result['wind_direction'] = wind_dir
+    result['wind_direction'].attrs = {
+        'units': 'degree',
+        'long_name': 'Wind direction (where wind comes FROM)'
+    }
     
     result['downwind_terrain_height'] = downwind_terrain_heights
     result['downwind_terrain_height'].attrs = {
@@ -372,10 +344,6 @@ def compute_wind_terrain_interaction(
         'long_name': f'Height of first terrain above pressure level within {range_km}km downwind'
     }
     
-    result['wind_slope_angle'] = wind_slope_angles
-    result['wind_slope_angle'].attrs = {
-        'units': 'radians',
-        'long_name': 'Angle between wind direction and slope aspect (-π to π)'
-    }
+
     
     return result

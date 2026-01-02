@@ -284,3 +284,72 @@ def compute_terrain_intersection(
         print(f"  {plev:4.0f} hPa: mean height ~{mean_height:5.0f}m, {n_intersect:5d}/{n_total} ({pct:5.1f}%) below terrain")
     
     return result
+
+def interpolate_to_grid(source_dataset, target_dataset):
+    """
+    Interpolate ERA5 data onto a target grid.
+    
+    Parameters
+    ----------
+    source_dataset : xr.Dataset
+        Source dataset with 4D variables (time, pressure_level, latitude, longitude)
+    target_dataset : xr.Dataset
+        Target dataset defining the grid (uses latitude and longitude coordinates)
+    
+    Returns
+    -------
+    xr.Dataset
+        Interpolated dataset on target grid with same variables and coordinates
+    """
+    from scipy.interpolate import RegularGridInterpolator
+    
+    source_lats = source_dataset.latitude.values
+    source_lons = source_dataset.longitude.values
+    target_lats = target_dataset.latitude.values
+    target_lons = target_dataset.longitude.values
+    
+    # Create output dataset structure
+    result = xr.Dataset(
+        coords={
+            'latitude': target_lats,
+            'longitude': target_lons,
+            'valid_time': source_dataset.valid_time,
+            'pressure_level': source_dataset.pressure_level,
+        }
+    )
+    
+    # Points to interpolate to
+    points = np.array(np.meshgrid(target_lats, target_lons, indexing='ij')).T.reshape(-1, 2)
+    
+    # Filter 4D variables
+    four_d_vars = {name: var for name, var in source_dataset.data_vars.items() 
+                   if len(var.dims) == 4}
+    
+    for var_name, var_data in four_d_vars.items():
+        data_stacked = var_data.stack(tp=('valid_time', 'pressure_level'))
+        output_shape = (len(source_dataset.valid_time), len(source_dataset.pressure_level),
+                        len(target_lats), len(target_lons))
+        interp_array = np.zeros(output_shape)
+        
+        for idx, (tp, data_slice) in enumerate(data_stacked.groupby('tp')):
+            interp_func = RegularGridInterpolator(
+                (source_lats, source_lons),
+                data_slice.values,
+                method='linear',
+                bounds_error=False,
+                fill_value=np.nan
+            )
+            t_idx = idx // len(source_dataset.pressure_level)
+            p_idx = idx % len(source_dataset.pressure_level)
+            interp_array[t_idx, p_idx] = interp_func(points).reshape(
+                len(target_lats), len(target_lons)
+            )
+        
+        result[var_name] = (('valid_time', 'pressure_level', 'latitude', 'longitude'), 
+                            interp_array)
+        if var_data.attrs:
+            result[var_name].attrs.update(var_data.attrs)
+    
+    return result
+
+

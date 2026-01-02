@@ -5,3 +5,5 @@ matplotlib
 pytest
 elevation 
 rasterio
+cdsapi
+era5vis
