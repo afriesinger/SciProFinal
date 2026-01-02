@@ -12,6 +12,10 @@
 *.env
 *.venv
 
+# Large cache files
+*.tif
+era5vis-main/era5vis/terrain_cache/srtm_alps_30m.tif
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
