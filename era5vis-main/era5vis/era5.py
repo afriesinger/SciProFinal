@@ -41,7 +41,19 @@ def check_data_availability(param, level=None, time=None):
     return True
 
 def check_alpine_bounds(area):
-    """Checks if the area is within Lat (45 to 48) and Lon (6 to 16)"""
+    """Checks if the area is within Lat (45 to 48) and Lon (6 to 16)
+    
+    Parameters
+    ----------
+    area : list of float
+        A list of four coordinates in the order: [North, West, South, East].
+
+    Raises
+    ------
+    ValueError
+        If any coordinate is outside the bounds
+    """
+    
     n, w, s, e = area
     ALP_N, ALP_S, ALP_W, ALP_E = 48.0, 45.0, 6.0, 16.0
 
@@ -51,7 +63,26 @@ def check_alpine_bounds(area):
         )
 
 def validate_inputs(area, year, month, day, time):
-    """Performs date, time, and coordinate validation."""
+    """Performs date, time, and coordinate validation.
+
+    Parameters
+    ----------
+    area : list of float
+        Coordinates [North, West, South, East]
+    year : str or int
+        Year of the data request (YYYY)
+    month : str or int
+        Month of the data request (MM)
+    day : str or int
+        Day of the data request (DD)
+    time : str
+        Time in HH:MM format
+
+    Returns
+    -------
+    bool
+        True if all validations pass.
+    """
     try:
         datetime.date(int(year), int(month), int(day))
         datetime.datetime.strptime(time, "%H:%M")
@@ -71,7 +102,12 @@ def load_era5_data(output_filename, year, month, day, time, area):
         return
 
     validate_inputs(area, year, month, day, time)
-    
+
+    levels = [
+        '450', '500', '550', '600', 
+        '650', '700', '750', '775', '800', '825', 
+        '850', '875', '900', '925', '950', '975', '1000'
+    ]
     c = cdsapi.Client()
     c.retrieve(
         'reanalysis-era5-pressure-levels',
@@ -80,8 +116,11 @@ def load_era5_data(output_filename, year, month, day, time, area):
             'format': 'netcdf',
             'variable': ['temperature', 'u_component_of_wind', 
                          'v_component_of_wind', 'geopotential'],
-            'pressure_level': ['500', '700', '850', '925', '1000'],
-            'year': year, 'month': month, 'day': day, 'time': time,
+            'pressure_level': levels,
+            'year': year, 
+            'month': month,
+            'day': day,
+            'time': time,
             'area': area,
         },
         output_filename)
