@@ -6,8 +6,20 @@ November 2025
 
 import sys
 import webbrowser
-
 import era5vis
+from era5vis import era5
+
+HELP_DOWNLOAD = """era5vis_download: Download ERA5 data for the Alpine region.
+
+Usage:
+    -o, --output [FILENAME]    : output filename, mandatory
+    -y, --year [YEAR]          : year (YYYY), mandatory
+    -m, --month [MONTH]        : month (MM), mandatory
+    -d, --day [DAY]            : day (DD), mandatory
+    -t, --time [TIME]          : time (HH:MM), mandatory
+    -a, --area [N W S E]       : North West South East coordinates, mandatory
+                                 (Limits: N<=48, S>=45, W>=6, E<=16)
+"""
 
 HELP = """era5vis_modellevel: Visualization of ERA5 at a given model level.
 
@@ -74,6 +86,70 @@ def modellevel(args):
               'Type "era5vis_modellevel --help" for usage information.')
 
 
+def download(args):
+    """The actual era5vis_download command line tool.
+    
+    Parameters
+    ----------
+    args: list
+        output of sys.args[1:]
+        
+    """
+    if '--output' in args: 
+        args[args.index('--output')] = '-o'
+    if '--year' in args: 
+        args[args.index('--year')] = '-y'
+    if '--month' in args: 
+        args[args.index('--month')] = '-m'
+    if '--day' in args: 
+        args[args.index('--day')] = '-d'
+    if '--time' in args: 
+        args[args.index('--time')] = '-t'
+    if '--area' in args: 
+        args[args.index('--area')] = '-a'
+
+    if len(args) == 0 or args[0] in ['-h', '--help']:
+        print(HELP_DOWNLOAD)
+    elif args[0] in ['-v', '--version']:
+        print('era5vis_download version: ' + era5vis.__version__)
+    # Individual Parameter Checks 
+    elif '-o' not in args:
+        print('Error: Output filename (-o) is mandatory.')
+    elif '-y' not in args:
+        print('Error: Year (-y) is mandatory.')
+    elif '-m' not in args:
+        print('Error: Month (-m) is mandatory.')
+    elif '-d' not in args:
+        print('Error: Day (-d) is mandatory.')
+    elif '-t' not in args:
+        print('Error: Time (-t) is mandatory.')
+    elif '-a' not in args:
+        print('Error: Area coordinates (-a) are mandatory.')
+    else:
+        try:
+            output = args[args.index('-o') + 1]
+            year = args[args.index('-y') + 1]
+            month = args[args.index('-m') + 1]
+            day = args[args.index('-d') + 1]
+            time = args[args.index('-t') + 1]
+            idx = args.index('-a')
+            area = [float(args[idx+1]), float(args[idx+2]), 
+                    float(args[idx+3]), float(args[idx+4])]
+            
+            era5.load_era5_data(output, year, month, day, time, area)
+            
+        except IndexError:
+            print('Error: A flag was provided but no value followed it.')
+        except ValueError:
+            print('Error: Area coordinates must be four numbers (N W S E).')
+        except Exception as e:
+            print(f'An unexpected error occurred: {e}')
+
+
 def era5vis_modellevel():
     """Entry point for the era5vis_modellevel application script"""
     modellevel(sys.argv[1:])
+   
+def era5vis_download():
+    """Entry point for the era5vis_download application script"""
+    download(sys.argv[1:])
