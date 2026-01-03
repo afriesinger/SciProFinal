@@ -36,9 +36,9 @@ def potential_temperature(
         theta : float or array-like
             Potential temperature in Kelvin
     """
-    if T < -273:
+    if (T < -273).any():
         raise ValueError('T needs to be above -273 °C')
-    if p > 1015 or p < 1:
+    if (p > 1015).any() or (p < 1).any():
         raise ValueError('p need to be between 1015 and 1 hPa')
     R = 287.0   # J/(kg·K)
     cp = 1004.0 # J/(kg·K)
@@ -80,7 +80,7 @@ def brunt_vaeisaelae_freq(
     g= 9.81
     dtheta = theta_up-theta_down
     dz = z_up - z_down
-    if dz < 0:
+    if (dz < 0).any():
         raise ValueError('z_down need to be smaller thatn z_up')
     
     if method =='mean':
@@ -90,7 +90,7 @@ def brunt_vaeisaelae_freq(
     else:
         raise ValueError('Valid Arguments for method are [mean, min]')
     
-    N = np.sqrt( (g/theta)(dtheta/dz))
+    N = np.sqrt( (g/theta)*(dtheta/dz))
 
     return N
 
@@ -118,14 +118,15 @@ def nondim_mtn_height(
         H : float
             non-dimensional mountain height (dimensionless)
     """
-    if N < 0 or N < 1:
+    if (N < 0).any() or (N > 1).any():
         raise ValueError('N need to be positive and smaller than 1')
-    if h < 0:
+    if (h < 0).any():
         raise ValueError('h need to be positive')
-    if U < 0:
+    if (U_up < 0).any() or (U_down < 0).any():
         raise ValueError('U need to be positive')
     
     U = (U_down + U_up) / 2
+
 
     H= (N * h) / U
 
@@ -145,14 +146,15 @@ def compute_N_H(data):
     """
     theta_up = data['theta'].shift(pressure_level=-1)
     theta_down = data['theta']
-    z_up = data['z'].shift(pressure_level=-1)
-    z_down = data['z']
+    z_up = data['gph'].shift(pressure_level=-1)
+    z_down = data['gph']
     U_up = data['perpendicular_wind_speed'].shift(pressure_level=-1)
     U_down = data['perpendicular_wind_speed']
+    h = data['downwind_terrain_height']
 
     # Calculate N and H
     N = brunt_vaeisaelae_freq(theta_up, theta_down, z_up, z_down)
-    H = nondim_mtn_height(N, z_up - z_down, U_up, U_down)
+    H = nondim_mtn_height(N, h, U_up, U_down)
 
     # Remove the last level (which has NaNs because of shift)
     N = N.isel(pressure_level=slice(0, -1))
