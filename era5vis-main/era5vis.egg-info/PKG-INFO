@@ -9,6 +9,7 @@ Classifier: Development Status :: 3 - Alpha
 Classifier: Programming Language :: Python :: 3
 Description-Content-Type: text/markdown
 License-File: LICENSE
+Requires-Dist: cdsapi
 Provides-Extra: test
 Requires-Dist: pytest; extra == "test"
 Dynamic: author
@@ -18,6 +19,7 @@ Dynamic: description-content-type
 Dynamic: keywords
 Dynamic: license-file
 Dynamic: provides-extra
+Dynamic: requires-dist
 Dynamic: summary
 
 # A visualization package for ERA5 data

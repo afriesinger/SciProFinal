@@ -7,3 +7,4 @@ elevation
 rasterio
 cdsapi
 era5vis
+setuptools

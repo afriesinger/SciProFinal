@@ -8,6 +8,9 @@ era5vis/cli.py
 era5vis/core.py
 era5vis/era5.py
 era5vis/graphics.py
+era5vis/terrain.py
+era5vis/visualization.py
+era5vis/wind.py
 era5vis.egg-info/PKG-INFO
 era5vis.egg-info/SOURCES.txt
 era5vis.egg-info/dependency_links.txt
