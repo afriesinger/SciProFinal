@@ -6,8 +6,6 @@ This module provides functions for:
 - Computing slope aspect and terrain properties
 - Creating xarray datasets with terrain information
 
-Requires: *.tif file in the terrain_cache/ directory for recreating terrain datasets.
-
 Author: Andreas Friesinger
 Date: 2025-12-31
 """
