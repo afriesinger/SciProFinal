@@ -6,7 +6,7 @@ This module provides functions for:
 - Computing slope aspect and terrain properties
 - Creating xarray datasets with terrain information
 
-Requires: srtm_alps_30m.tif in terrain_cache/ directory
+Requires: *.tif file in the terrain_cache/ directory for recreating terrain datasets.
 
 Author: Andreas Friesinger
 Date: 2025-12-31
@@ -17,7 +17,7 @@ import xarray as xr
 import os
 from typing import Tuple
 
-G = 9.80665  # Standard gravity (m/s²)
+G = 9.80665  # Gravity (m/s²)
 
 
 def load_terrain_from_tif(
@@ -77,8 +77,33 @@ def downsample_terrain(
     source_resolution_m: float,
     target_resolution_m: float = 1000
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+
     """
     Downsample terrain to a coarser resolution.
+
+    Parameters
+    ----------
+    terrain : np.ndarray
+        2D elevation array
+    lats : np.ndarray
+        1D latitude array (decreasing, N to S)
+    lons : np.ndarray
+        1D longitude array (increasing, W to E)
+    source_resolution_m : float
+        Approximate resolution of the input terrain
+    target_resolution_m : float, optional
+        Desired resolution of the output terrain, default is 1000m
+
+    Returns
+    -------
+    terrain_ds : np.ndarray
+        Downsampled elevation array
+    lats_ds : np.ndarray
+        Downsampled latitude array
+    lons_ds : np.ndarray
+        Downsampled longitude array
+    actual_resolution_m : float
+        Actual resolution of the output terrain
     """
     from scipy.ndimage import zoom as scipy_zoom
     from scipy.ndimage import gaussian_filter
@@ -112,34 +137,46 @@ def compute_terrain_aspect_dataset(
     smooth_sigma: float = 1.5
 ) -> xr.Dataset:
     """
-    Compute slope aspect and related terrain properties, return as xarray Dataset.
+    Compute slope aspect and terrain properties, return as xarray Dataset.
+
+    Parameters
+    ----------
+    terrain : np.ndarray
+        2D elevation array
+    lats : np.ndarray
+        1D latitude array (decreasing, N to S)
+    lons : np.ndarray
+        1D longitude array (increasing, W to E)
+    resolution_m : float
+        Approximate resolution in meters
+    min_elevation : float, optional
+        Minimum elevation for terrain mask, default 500.0
+    min_slope : float, optional
+        Minimum slope for terrain mask, default 1.0
+    smooth_sigma : float, optional
+        Sigma for Gaussian smoothing before gradient calculation, default 1.5
+
+    Returns
+    -------
+    ds : xr.Dataset
+        xarray Dataset containing terrain elevation, aspect, slope, and mask
     """
     from scipy.ndimage import gaussian_filter
     
     # Smooth terrain for gradient calculation
     terrain_smooth = gaussian_filter(terrain.astype(float), sigma=smooth_sigma)
     
-    # Compute gradients (dz/dy, dz/dx)
     dz_dy, dz_dx = np.gradient(terrain_smooth, resolution_m)
     
-    # Aspect: direction the slope faces (downhill direction)
-    aspect = np.arctan2(-dz_dx, -dz_dy)  # radians
+    aspect_deg = np.degrees(np.arctan2(-dz_dx, -dz_dy)) % 360
     
-    # Convert to 0-360 degrees
-    aspect_deg = np.degrees(aspect) % 360
+    slope_deg = np.degrees(np.arctan(np.sqrt(dz_dx**2 + dz_dy**2)))
     
-    # Slope magnitude and angle
-    slope_mag = np.sqrt(dz_dx**2 + dz_dy**2)
-    slope_deg = np.degrees(np.arctan(slope_mag))
-    
-    # Terrain mask
     terrain_mask = (terrain >= min_elevation) & (slope_deg >= min_slope)
     
-    # Create xarray Dataset
     ds = xr.Dataset(
         {
             'elevation': (['latitude', 'longitude'], terrain),
-            'aspect': (['latitude', 'longitude'], aspect),
             'aspect_deg': (['latitude', 'longitude'], aspect_deg),
             'slope': (['latitude', 'longitude'], slope_deg),
             'terrain_mask': (['latitude', 'longitude'], terrain_mask),
@@ -158,7 +195,6 @@ def compute_terrain_aspect_dataset(
     
     # Add variable attributes
     ds['elevation'].attrs = {'units': 'm', 'long_name': 'Terrain elevation'}
-    ds['aspect'].attrs = {'units': 'radians', 'long_name': 'Slope aspect (downhill direction)'}
     ds['aspect_deg'].attrs = {'units': 'degrees', 'long_name': 'Slope aspect (0-360)'}
     ds['slope'].attrs = {'units': 'degrees', 'long_name': 'Slope steepness'}
     ds['terrain_mask'].attrs = {'long_name': 'Valid terrain mask'}
@@ -169,8 +205,19 @@ def compute_terrain_aspect_dataset(
 def load_terrain_aspect_dataset(
     cache_path: str = "./terrain_cache/terrain_aspect_1km.nc"
 ) -> xr.Dataset:
+
     """
     Load pre-computed terrain aspect dataset from NetCDF file.
+
+    Parameters
+    ----------
+    cache_path : str
+        Path to the terrain aspect cache file (default: ./terrain_cache/terrain_aspect_1km.nc)
+
+    Returns
+    -------
+    xr.Dataset
+        xarray Dataset containing terrain elevation, aspect, slope, and mask
     """
     if not os.path.exists(cache_path):
         raise FileNotFoundError(f"Terrain aspect cache not found: {cache_path}")
@@ -207,19 +254,11 @@ def compute_terrain_intersection(
     """
     from scipy.interpolate import RegularGridInterpolator
     
-    # Get ERA5 coordinate bounds
-    lat_min = float(era5_data.latitude.min())
-    lat_max = float(era5_data.latitude.max())
-    lon_min = float(era5_data.longitude.min())
-    lon_max = float(era5_data.longitude.max())
-    
-    print(f"ERA5 domain: lat({lat_min:.1f}, {lat_max:.1f}), lon({lon_min:.1f}, {lon_max:.1f})")
     
     terrain_elev = terrain_ds['elevation'].values
     terrain_lats = terrain_ds['latitude'].values
     terrain_lons = terrain_ds['longitude'].values
     
-    # Interpolate terrain to ERA5 grid
     # RegularGridInterpolator expects increasing coordinates
     interp_func = RegularGridInterpolator(
         (terrain_lats[::-1], terrain_lons),  # Flip lats to be increasing
@@ -243,9 +282,7 @@ def compute_terrain_intersection(
         dims=['latitude', 'longitude'],
         coords={'latitude': era5_data.latitude, 'longitude': era5_data.longitude}
     )
-    
-    print(f"Terrain elevation range on ERA5 grid: {float(np.nanmin(terrain_on_era5_values)):.0f}m to {float(np.nanmax(terrain_on_era5_values)):.0f}m")
-    
+       
     # Convert geopotential to geopotential height
     if 'z' in era5_data:
         geopotential_height = era5_data['z'] / G
@@ -272,27 +309,16 @@ def compute_terrain_intersection(
     }
     result['geopotential_height'] = geopotential_height
     
-    # Print summary
-    print(f"\n Terrain intersection summary:")
-    for plev in era5_data.pressure_level.values:
-        mask_at_level = terrain_mask.isel(valid_time=0).sel(pressure_level=plev)
-        n_intersect = int(mask_at_level.sum())
-        n_total = mask_at_level.size
-        pct = 100 * n_intersect / n_total
-        height_at_level = geopotential_height.isel(valid_time=0).sel(pressure_level=plev)
-        mean_height = float(height_at_level.mean())
-        print(f"  {plev:4.0f} hPa: mean height ~{mean_height:5.0f}m, {n_intersect:5d}/{n_total} ({pct:5.1f}%) below terrain")
-    
     return result
 
 def interpolate_to_grid(source_dataset, target_dataset):
     """
-    Interpolate ERA5 data onto a target grid.
+    Interpolate ERA5 data onto a target grid using xarray's interpolation methods.
     
     Parameters
     ----------
     source_dataset : xr.Dataset
-        Source dataset with 4D variables (time, pressure_level, latitude, longitude)
+        Source dataset with variables on (time, pressure_level, latitude, longitude)
     target_dataset : xr.Dataset
         Target dataset defining the grid (uses latitude and longitude coordinates)
     
@@ -301,54 +327,27 @@ def interpolate_to_grid(source_dataset, target_dataset):
     xr.Dataset
         Interpolated dataset on target grid with same variables and coordinates
     """
-    from scipy.interpolate import RegularGridInterpolator
-    
-    source_lats = source_dataset.latitude.values
-    source_lons = source_dataset.longitude.values
     target_lats = target_dataset.latitude.values
     target_lons = target_dataset.longitude.values
     
-    # Create output dataset structure
-    result = xr.Dataset(
-        coords={
-            'latitude': target_lats,
-            'longitude': target_lons,
-            'valid_time': source_dataset.valid_time,
-            'pressure_level': source_dataset.pressure_level,
-        }
+    # Use xarray's interp method with vectorized operations
+    # Create new coordinates for target grid
+    new_coords = {
+        'latitude': target_lats,
+        'longitude': target_lons,
+    }
+    
+    # Interpolate using xarray's built-in method (handles all dims at once)
+    result = source_dataset.interp(
+        coords=new_coords,
+        method='linear',
+        kwargs={'fill_value': np.nan}
     )
     
-    # Points to interpolate to
-    points = np.array(np.meshgrid(target_lats, target_lons, indexing='ij')).T.reshape(-1, 2)
-    
-    # Filter 4D variables
-    four_d_vars = {name: var for name, var in source_dataset.data_vars.items() 
-                   if len(var.dims) == 4}
-    
-    for var_name, var_data in four_d_vars.items():
-        data_stacked = var_data.stack(tp=('valid_time', 'pressure_level'))
-        output_shape = (len(source_dataset.valid_time), len(source_dataset.pressure_level),
-                        len(target_lats), len(target_lons))
-        interp_array = np.zeros(output_shape)
-        
-        for idx, (tp, data_slice) in enumerate(data_stacked.groupby('tp')):
-            interp_func = RegularGridInterpolator(
-                (source_lats, source_lons),
-                data_slice.values,
-                method='linear',
-                bounds_error=False,
-                fill_value=np.nan
-            )
-            t_idx = idx // len(source_dataset.pressure_level)
-            p_idx = idx % len(source_dataset.pressure_level)
-            interp_array[t_idx, p_idx] = interp_func(points).reshape(
-                len(target_lats), len(target_lons)
-            )
-        
-        result[var_name] = (('valid_time', 'pressure_level', 'latitude', 'longitude'), 
-                            interp_array)
-        if var_data.attrs:
-            result[var_name].attrs.update(var_data.attrs)
+    # Preserve attributes from original dataset
+    for var_name in result.data_vars:
+        if var_name in source_dataset.data_vars:
+            result[var_name].attrs.update(source_dataset[var_name].attrs)
     
     return result
 
