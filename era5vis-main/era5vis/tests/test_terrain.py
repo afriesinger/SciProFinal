@@ -1,14 +1,7 @@
 """
 Unit tests for the terrain module.
 
-Tests cover:
-- Terrain data loading and processing
-- Aspect and slope calculations
-- Terrain-ERA5 data intersection
-- Grid interpolation
-- Dataset creation and validation
-
-Author: Test Suite
+Author: Andreas Friesinger
 Date: 2026-01-09
 """
 

@@ -1,12 +1,6 @@
 """
 Unit tests for the wind module.
 
-Tests cover:
-- Wind direction and speed calculations
-- Wind-slope interaction analysis
-- Downwind terrain search
-- Wind-terrain interaction metrics
-
 Author: Andreas Friesinger
 Date: 2026-01-09
 """
