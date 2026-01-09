@@ -273,7 +273,8 @@ def compute_wind_terrain_interaction(
         # If terrain_mask exists, get corresponding 1D mask values
         terrain_stuck_vals = None
         if terrain_mask_loc is not None:
-            terrain_stuck_vals = terrain_mask_loc.values.ravel()
+            # terrain_mask_loc is already a numpy array (extracted from terrain_mask)
+            terrain_stuck_vals = terrain_mask_loc.ravel()
         
         # Process each time-pressure point with lambda
         compute_point = lambda wd, ws, h: (
@@ -304,9 +305,11 @@ def compute_wind_terrain_interaction(
                 downwind_terrain_heights.values[multi_idx] = terrain_height
                 perpendicular_winds.values[multi_idx] = perp_wind
     
-    # Vectorize computation over spatial locations
-    vec_compute = np.vectorize(compute_terrain_at_location, otypes=[None])
-    vec_compute(lats, lons)
+    # Iterate over all spatial locations on ERA5 grid
+    # Need the looping because of different shapes of datasets
+    for lat in lats:
+        for lon in lons:
+            compute_terrain_at_location(lat, lon)
     
     # Assemble result dataset
     result = era5_data.copy()
