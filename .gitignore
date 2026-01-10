@@ -423,3 +423,7 @@ FodyWeavers.xsd
 *.msp
 .vscode/launch.json
 era5vis-main/era5vis/visualization.ipynb
+era5vis-main/era5vis/H_parameter_all_levels_with_blue_overlay.png
+.gitignore
+era5vis-main/era5vis/data/andi.nc
+era5vis-main/era5vis/H_parameter_1000-700hPa_with_blue_overlay.png

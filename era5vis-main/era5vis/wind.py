@@ -43,15 +43,15 @@ def _get_downwind_points(era_lat, era_lon, wind_dir, range_km=10):
     # Wind direction is where it comes FROM, so downwind direction is opposite
     downwind_dir = int(wind_dir) + 180  # Opposite direction
     
-    n_points = int(range_km/2)  # Number of sample points
+    n_points = max(2, int(range_km * 2))  # Number of sample points (at least 2)
     max_dist_m = range_km * 1000  # Convert to meters
     distances = np.linspace(0, max_dist_m, n_points)
     
     # Use simple lat/lon offset (good approximation for small distances)
     # 1 degree latitude ≈ 111 km
     # 1 degree longitude ≈ 111 * cos(lat) km
-    lat_offset = (distances / 111000) * np.cos(np.radians(downwind_dir))
-    lon_offset = (distances / (111000 * np.cos(np.radians(era_lat)))) * np.sin(np.radians(downwind_dir))
+    lat_offset = (distances / 111000) * np.sin(np.radians(downwind_dir))
+    lon_offset = (distances / (111000 * np.cos(np.radians(era_lat)))) * np.cos(np.radians(downwind_dir))
     
     downwind_lats = era_lat + lat_offset
     downwind_lons = era_lon + lon_offset
@@ -59,7 +59,7 @@ def _get_downwind_points(era_lat, era_lon, wind_dir, range_km=10):
     return downwind_lats, downwind_lons
 
 
-def _find_highest_terrain_downwind(downwind_lats, downwind_lons, terrain_ds, pressure_level_height):
+def _find_highest_terrain_downwind(downwind_lats, downwind_lons, interp_elev, interp_aspect, pressure_level_height):
     """
     Find first terrain point downwind that's higher than pressure level.
     
@@ -69,8 +69,10 @@ def _find_highest_terrain_downwind(downwind_lats, downwind_lons, terrain_ds, pre
         Latitudes along downwind direction
     downwind_lons : np.ndarray
         Longitudes along downwind direction
-    terrain_ds : xr.Dataset
-        Terrain dataset with 'elevation' and 'aspect' variables
+    interp_elev : RegularGridInterpolator
+        Terrain elevation interpolator
+    interp_aspect : RegularGridInterpolator
+        Terrain aspect interpolator
     pressure_level_height : float
         Height at pressure level (meters)
         
@@ -81,30 +83,6 @@ def _find_highest_terrain_downwind(downwind_lats, downwind_lons, terrain_ds, pre
     terrain_aspect : float or np.nan
         Aspect of the first terrain point above pressure level
     """
-    from scipy.interpolate import RegularGridInterpolator
-    
-    terrain_elevation = terrain_ds['elevation'].values
-    terrain_lats = terrain_ds['latitude'].values
-    terrain_lons = terrain_ds['longitude'].values
-    
-    # Create interpolator for terrain elevation
-    interp_elev = RegularGridInterpolator(
-        (terrain_lats[::-1], terrain_lons),
-        terrain_elevation[::-1, :],
-        method='linear',
-        bounds_error=False,
-        fill_value=np.nan
-    )
-    
-    # Create interpolator for aspect
-    terrain_aspect_vals = terrain_ds['aspect_deg'].values
-    interp_aspect = RegularGridInterpolator(
-        (terrain_lats[::-1], terrain_lons),
-        terrain_aspect_vals[::-1, :],
-        method='linear',
-        bounds_error=False,
-        fill_value=np.nan
-    )
     
     # Stack points for interpolation
     points = np.stack([downwind_lats, downwind_lons], axis=-1)
@@ -138,10 +116,13 @@ def calc_wind(u, v):
         
     Returns:
     wind_dir : array-like
-        Wind direction in degrees.
+        Wind direction in degrees (uint16, 0-360).
+    wind_speed : array-like
+        Wind speed in m/s.
     """
 
     wind_dir = (np.degrees(np.arctan2(-u, -v)) + 360) % 360
+    wind_dir = wind_dir.astype(np.uint16)
     wind_speed = np.round(np.sqrt(u**2 + v**2), 2)  
     return wind_dir, wind_speed
 
@@ -190,21 +171,19 @@ def perpendicular_wind_component(wind_dir, wind_speed, slope_aspect):
     return np.round(perpendicular_wind_speed,2)
 
 
-def compute_wind_terrain_interaction(
+def compute_downwind_terrain_height(
     era5_data: xr.Dataset,
     terrain_ds: xr.Dataset,
     range_km: float = 1.0
-) -> xr.Dataset:
+) -> xr.DataArray:
     """
-    Compute wind-terrain interaction metrics using terrain search in downwind direction.
+    Compute downwind terrain height for each ERA5 gridpoint and pressure level.
     
     For each ERA5 gridpoint at each pressure level:
-    1. Extract wind speed and direction at that gridpoint
+    1. Extract wind direction at that gridpoint
     2. Search downwind within the specified range
     3. Find the first terrain point higher than the pressure level
-    4. Calculate the angle between wind direction and terrain slope aspect
-    
-    Points where the pressure level geopotential is below terrain elevation are skipped.
+    4. Return the height of that terrain point
     
     Parameters
     ----------
@@ -213,15 +192,12 @@ def compute_wind_terrain_interaction(
     terrain_ds : xr.Dataset
         Terrain aspect dataset with elevation, aspect, latitude, longitude
     range_km : float
-        Search range downwind in kilometers (default: 10 km)
+        Search range downwind in kilometers (default: 1.0 km)
         
     Returns
     -------
-    xr.Dataset
-        ERA5 dataset with added xarray variables:
-        - wind_speed: Wind speed at gridpoint
-        - wind_direction: Wind direction (where wind comes FROM)
-        - downwind_terrain_height: Height of first terrain above pressure level
+    xr.DataArray
+        Downwind terrain height with same shape as wind field (time, pressure_level, latitude, longitude)
     
     """
     # Input validation
@@ -230,13 +206,12 @@ def compute_wind_terrain_interaction(
     if 'z' not in era5_data:
         raise ValueError("ERA5 dataset must contain 'z' (geopotential)")
     
-    # Compute wind metrics (vectorized across all dimensions at once)
+    # Compute wind metrics (vectorized)
     wind_dir, wind_speed = calc_wind(era5_data['u'], era5_data['v'])
-    height_at_level = era5_data['z'] / G
+    height_at_level = era5_data['gph']
     
-    # Initialize output arrays with same shape as wind_speed
+    # Initialize output array
     downwind_terrain_heights = xr.full_like(wind_speed, np.nan, dtype=float)
-    perpendicular_winds = xr.full_like(wind_speed, np.nan, dtype=float)
     
     # Get spatial coordinate arrays
     lats = era5_data.latitude.values
@@ -245,84 +220,206 @@ def compute_wind_terrain_interaction(
     # Get terrain intersection mask if available
     # (True = gridpoint stuck below terrain, should skip)
     terrain_mask = None
-    if 'terrain' in era5_data:
-        terrain_mask = era5_data['terrain'].values
+    #if 'terrain' in era5_data:
+    #    terrain_mask = era5_data['terrain'].values
     
-    # Define computation function for a single spatial location
-    def compute_terrain_at_location(lat, lon):
-        """Compute terrain metrics for all time-pressure points at a spatial location."""
-        # Extract 1D time-pressure slice at this location
-        wd_loc = wind_dir.sel(latitude=lat, longitude=lon, method='nearest')
-        ws_loc = wind_speed.sel(latitude=lat, longitude=lon, method='nearest')
-        h_loc = height_at_level.sel(latitude=lat, longitude=lon, method='nearest')
-        
-        # Get terrain intersection mask at this location (if available)
-        terrain_mask_loc = None
-        if terrain_mask is not None:
-            lat_idx = np.argmin(np.abs(lats - lat))
-            lon_idx = np.argmin(np.abs(lons - lon))
-            # Extract 1D time-pressure mask at this location
-            # terrain_mask shape: (valid_time, pressure_level, latitude, longitude)
-            terrain_mask_loc = terrain_mask[:, :, lat_idx, lon_idx]
-        
-        # Convert to numpy for iteration (handles any dimension structure)
-        wd_vals = wd_loc.values.ravel()
-        ws_vals = ws_loc.values.ravel()
-        h_vals = h_loc.values.ravel()
-        
-        # If terrain_mask exists, get corresponding 1D mask values
-        terrain_stuck_vals = None
-        if terrain_mask_loc is not None:
-            # terrain_mask_loc is already a numpy array (extracted from terrain_mask)
-            terrain_stuck_vals = terrain_mask_loc.ravel()
-        
-        # Process each time-pressure point with lambda
-        compute_point = lambda wd, ws, h: (
-            _find_highest_terrain_downwind(
-                *_get_downwind_points(lat, lon, wd, range_km=range_km),
-                terrain_ds, h
-            ) if not (np.isnan(ws) or np.isnan(wd) or np.isnan(h) or ws < 0.1) 
-            else (np.nan, np.nan)
-        )
-        
-        # Apply computation to all points at this location
-        for idx, (wd_val, ws_val, h_val) in enumerate(zip(wd_vals, ws_vals, h_vals)):
-            # Check if this specific point is stuck in terrain
-            stuck = terrain_stuck_vals[idx] if terrain_stuck_vals is not None else False
-            
-            # Skip computation if stuck in terrain
-            if stuck:
-                continue
-            
-            terrain_height, terrain_aspect = compute_point(wd_val, ws_val, h_val)
-            
-            # Calculate perpendicular wind component if terrain found
-            if not np.isnan(terrain_aspect):
-                perp_wind = perpendicular_wind_component(wd_val, ws_val, terrain_aspect)
-                
-                # Assign to output arrays (reconstruct multi-dimensional index)
-                multi_idx = np.unravel_index(idx, wd_loc.values.shape)
-                downwind_terrain_heights.values[multi_idx] = terrain_height
-                perpendicular_winds.values[multi_idx] = perp_wind
+    # VECTORIZED: Generate downwind points for all spatial locations at once
+    n_points_downwind = max(2, int(range_km * 2))
+    max_dist_m = range_km * 1000
+    distances = np.linspace(0, max_dist_m, n_points_downwind)
     
-    # Iterate over all spatial locations on ERA5 grid
-    # Need the looping because of different shapes of datasets
-    for lat in lats:
-        for lon in lons:
-            compute_terrain_at_location(lat, lon)
+    # Get shapes
+    nt, np_level, nlat_era5, nlon_era5 = wind_dir.shape
     
-    # Assemble result dataset
+    # Create mesh grid for all ERA5 spatial coordinates
+    lat_grid_2d, lon_grid_2d = np.meshgrid(lats, lons, indexing='ij')  # shape: (nlat_era5, nlon_era5)
+    
+    # Get terrain data for direct indexing (no interpolation)
+    terrain_elevation = terrain_ds['elevation'].values  # shape: (nlat_terrain, nlon_terrain)
+    terrain_aspect_vals = terrain_ds['aspect_deg'].values  # shape: (nlat_terrain, nlon_terrain)
+    terrain_lats_arr = terrain_ds['latitude'].values  # shape: (nlat_terrain,)
+    terrain_lons_arr = terrain_ds['longitude'].values  # shape: (nlon_terrain,)
+    
+
+    
+    # Initialize arrays to store downwind terrain values for all distances
+    downwind_terrain_elev_all = np.full(
+        (n_points_downwind, nlat_era5, nlon_era5), np.nan
+    )
+    downwind_terrain_aspect_all = np.full(
+        (n_points_downwind, nlat_era5, nlon_era5), np.nan
+    )
+    
+    # STEP 2: For each downwind distance, compute downwind positions and get terrain values
+    # Average wind direction across time and pressure for downwind calculation
+    wind_dir_avg = np.nanmean(wind_dir.values, axis=(0, 1))  # shape: (nlat_era5, nlon_era5)
+    downwind_dir_avg = wind_dir_avg + 180  # Opposite direction
+    
+    for pt_idx in range(n_points_downwind):
+        dist = distances[pt_idx]
+        
+        # Compute downwind offsets for ALL points at once (vectorized)
+        lat_offset = (dist / 111000) * np.sin(np.radians(downwind_dir_avg))
+        lon_offset = (dist / (111000 * np.cos(np.radians(lat_grid_2d)))) * np.cos(np.radians(downwind_dir_avg))
+        
+        # Downwind positions for all points
+        downwind_lat_all = lat_grid_2d + lat_offset
+        downwind_lon_all = lon_grid_2d + lon_offset
+        
+        # Find nearest terrain grid indices for all downwind positions
+        # NOTE: terrain_lats_arr is DESCENDING, terrain_lons_arr is ASCENDING
+        # For descending lat array, we need to search in reverse order
+        lat_indices_down = np.searchsorted(-terrain_lats_arr, -downwind_lat_all.ravel(), side='left')
+        lon_indices_down = np.searchsorted(terrain_lons_arr, downwind_lon_all.ravel(), side='left')
+        
+        # Clip to valid range
+        lat_indices_down = np.clip(lat_indices_down, 0, len(terrain_lats_arr) - 1)
+        lon_indices_down = np.clip(lon_indices_down, 0, len(terrain_lons_arr) - 1)
+        
+        # Extract terrain values at downwind locations
+        downwind_terrain_elev_all[pt_idx] = terrain_elevation[lat_indices_down, lon_indices_down].reshape(nlat_era5, nlon_era5)
+        downwind_terrain_aspect_all[pt_idx] = terrain_aspect_vals[lat_indices_down, lon_indices_down].reshape(nlat_era5, nlon_era5)
+    
+    # STEP 3: Find first terrain point above pressure level (vectorized across spatial dimensions)
+    height_threshold = height_at_level.values  # shape: (nt, np_level, nlat_era5, nlon_era5)
+    
+    # For each spatial location, find the first downwind point with terrain > pressure height
+    for lat_idx in range(nlat_era5):
+        for lon_idx in range(nlon_era5):
+            # For this spatial location, check all time and pressure levels
+            for t_idx in range(nt):
+                for p_idx in range(np_level):
+                    # Skip if stuck in terrain
+                    #if terrain_mask is not None and terrain_mask[t_idx, p_idx, lat_idx, lon_idx]:
+                    #    continue
+                    
+                    # Skip if no valid wind data
+                    if np.isnan(wind_dir.values[t_idx, p_idx, lat_idx, lon_idx]) or \
+                       np.isnan(wind_speed.values[t_idx, p_idx, lat_idx, lon_idx]):
+                        continue
+                    
+                    threshold = height_threshold[t_idx, p_idx, lat_idx, lon_idx]
+                    
+                    # Search through downwind points
+                    for pt_idx in range(n_points_downwind):
+                        terrain_height = downwind_terrain_elev_all[pt_idx, lat_idx, lon_idx]
+                        
+                        # Check if this point is above threshold
+                        if not np.isnan(terrain_height) and terrain_height > threshold:
+                            downwind_terrain_heights.values[t_idx, p_idx, lat_idx, lon_idx] = terrain_height
+                            break  # Found first point, move to next location
+    
+    return downwind_terrain_heights
+
+
+def compute_wind_terrain_interaction(
+    era5_data: xr.Dataset,
+    terrain_ds: xr.Dataset,
+    range_km: float = 1.0
+) -> xr.Dataset:
+    """
+    Compute complete wind-terrain interaction metrics (vectorized).
+    
+    For each ERA5 gridpoint at each pressure level:
+    1. Compute wind speed and direction
+    2. Find downwind terrain height (first terrain above pressure level)
+    3. Calculate perpendicular wind component relative to terrain aspect
+    
+    Uses fully vectorized xarray operations - no spatial loops!
+    
+    Parameters
+    ----------
+    era5_data : xr.Dataset
+        ERA5 dataset with u, v wind components and z (geopotential)
+    terrain_ds : xr.Dataset
+        Terrain dataset with elevation, aspect_deg (latitude, longitude)
+    range_km : float
+        Search range downwind in kilometers (default: 1.0 km)
+        
+    Returns
+    -------
+    xr.Dataset
+        Input ERA5 dataset with added variables:
+        - wind_speed: Wind speed at each point (m/s)
+        - wind_direction: Wind direction where wind comes FROM (degrees)
+        - downwind_terrain_height: Height of first terrain above pressure level (m)
+        - perpendicular_wind_speed: Wind component perpendicular to terrain aspect (m/s)
+    """
+    # Input validation
+    if 'u' not in era5_data or 'v' not in era5_data:
+        raise ValueError("ERA5 dataset must contain 'u' and 'v' wind components")
+    if 'z' not in era5_data:
+        raise ValueError("ERA5 dataset must contain 'z' (geopotential)")
+    
+    # STEP 1: Compute wind metrics (vectorized - no loops)
+    wind_dir, wind_speed = calc_wind(era5_data['u'], era5_data['v'])
+    height_at_level = era5_data['z'] / G
+    
+    # STEP 2: Get downwind terrain height
+    downwind_terrain_heights = compute_downwind_terrain_height(
+        era5_data, terrain_ds, range_km=range_km
+    )
+    
+    # STEP 3: Calculate perpendicular wind component (vectorized)
+    # Get terrain aspect aligned with ERA5 grid
+    terrain_lats_arr = terrain_ds['latitude'].values
+    terrain_lons_arr = terrain_ds['longitude'].values
+    terrain_aspect_vals = terrain_ds['aspect_deg'].values
+    
+    era5_lats = era5_data.latitude.values
+    era5_lons = era5_data.longitude.values
+    nt, np_level, nlat_era5, nlon_era5 = wind_dir.shape
+    
+    # Create mapping from ERA5 to terrain grid
+    if nlat_era5 == len(terrain_lats_arr) and nlon_era5 == len(terrain_lons_arr):
+        # Perfect alignment - use direct indexing
+        terrain_aspect_at_era5 = terrain_aspect_vals
+    else:
+        # Find nearest terrain indices for each ERA5 point
+        lat_indices = np.searchsorted(terrain_lats_arr, era5_lats, side='left')
+        lon_indices = np.searchsorted(terrain_lons_arr, era5_lons, side='left')
+        lat_indices = np.clip(lat_indices, 0, len(terrain_lats_arr) - 1)
+        lon_indices = np.clip(lon_indices, 0, len(terrain_lons_arr) - 1)
+        terrain_aspect_at_era5 = terrain_aspect_vals[np.ix_(lat_indices, lon_indices)]
+    
+    # Initialize perpendicular wind output array
+    perpendicular_winds = xr.full_like(wind_speed, np.nan, dtype=float)
+    
+    # Vectorized perpendicular wind calculation
+    # Only calculate where we have valid downwind terrain height
+    valid_terrain = ~np.isnan(downwind_terrain_heights.values)
+    
+    for t_idx in range(nt):
+        for p_idx in range(np_level):
+            for lat_idx in range(nlat_era5):
+                for lon_idx in range(nlon_era5):
+                    if valid_terrain[t_idx, p_idx, lat_idx, lon_idx]:
+                        wd = wind_dir.values[t_idx, p_idx, lat_idx, lon_idx]
+                        ws = wind_speed.values[t_idx, p_idx, lat_idx, lon_idx]
+                        ta = terrain_aspect_at_era5[lat_idx, lon_idx]
+                        
+                        if not np.isnan(wd) and not np.isnan(ws) and not np.isnan(ta) and ws > 0.1:
+                            perp_wind = perpendicular_wind_component(wd, ws, ta)
+                            perpendicular_winds.values[t_idx, p_idx, lat_idx, lon_idx] = perp_wind
+    
+    # STEP 4: Assemble result dataset
     result = era5_data.copy()
     result['wind_speed'] = wind_speed
     result['wind_speed'].attrs = {'units': 'm/s', 'long_name': 'Wind speed'}
-    result['wind_direction'] = wind_dir
-    result['wind_direction'].attrs = {'units': 'degree', 'long_name': 'Wind direction (where wind comes FROM)'}
-    result['downwind_terrain_height'] = downwind_terrain_heights
+    result['wind_direction'] = wind_dir.astype(np.uint16)
+    result['wind_direction'].attrs = {'units': 'degrees', 'long_name': 'Wind direction (from)'}
+    # Use uint16 for terrain height (0-65535m, covers all Earth elevations)
+    # Handle NaN by replacing with 0 before conversion
+    downwind_heights_filled = downwind_terrain_heights.fillna(0)
+    result['downwind_terrain_height'] = downwind_heights_filled.astype(np.uint16)
     result['downwind_terrain_height'].attrs = {
         'units': 'm',
-        'long_name': f'Height of first terrain above pressure level within {range_km}km downwind'
+        'long_name': f'First terrain elevation above pressure level (within {range_km}km downwind)'
     }
-    result['perpendicular_wind_speed'] = perpendicular_winds
-    result['perpendicular_wind_speed'].attrs = {'units': 'm/s', 'long_name': 'perpendicular wind speed'}
+    result['perpendicular_wind_speed'] = perpendicular_winds.astype(np.float32)
+    result['perpendicular_wind_speed'].attrs = {
+        'units': 'm/s',
+        'long_name': 'Wind component perpendicular to terrain aspect'
+    }
     
     return result

@@ -6,6 +6,7 @@ November 2025
 
 import sys
 import webbrowser
+import datetime
 import era5vis
 from era5vis import era5
 
@@ -13,11 +14,9 @@ HELP_DOWNLOAD = """era5vis_download: Download ERA5 data for the Alpine region.
 
 Usage:
     -o, --output [FILENAME]    : output filename, mandatory
-    -y, --year [YEAR]          : year (YYYY), mandatory
-    -m, --month [MONTH]        : month (MM), mandatory
-    -d, --day [DAY]            : day (DD), mandatory
-    -t, --time [TIME]          : time (HH:MM), mandatory
-    -a, --area [N W S E]       : North West South East coordinates, mandatory
+    -s, --start [YYYY-MM-DD-HH]: start date and hour, mandatory
+    -e, --end [YYYY-MM-DD-HH]  : end date and hour, optional (for time series)
+    -a, --area [N W S E]       : North West South East coordinates (spaces only), mandatory
                                  (Limits: N<=48, S>=45, W>=6, E<=16)
 """
 
@@ -93,18 +92,15 @@ def download(args):
     ----------
     args: list
         output of sys.args[1:]
-        
+    
     """
+
     if '--output' in args: 
         args[args.index('--output')] = '-o'
-    if '--year' in args: 
-        args[args.index('--year')] = '-y'
-    if '--month' in args: 
-        args[args.index('--month')] = '-m'
-    if '--day' in args: 
-        args[args.index('--day')] = '-d'
-    if '--time' in args: 
-        args[args.index('--time')] = '-t'
+    if '--start' in args: 
+        args[args.index('--start')] = '-s'
+    if '--end' in args: 
+        args[args.index('--end')] = '-e'
     if '--area' in args: 
         args[args.index('--area')] = '-a'
 
@@ -112,39 +108,34 @@ def download(args):
         print(HELP_DOWNLOAD)
     elif args[0] in ['-v', '--version']:
         print('era5vis_download version: ' + era5vis.__version__)
-    # Individual Parameter Checks 
-    elif '-o' not in args:
-        print('Error: Output filename (-o) is mandatory.')
-    elif '-y' not in args:
-        print('Error: Year (-y) is mandatory.')
-    elif '-m' not in args:
-        print('Error: Month (-m) is mandatory.')
-    elif '-d' not in args:
-        print('Error: Day (-d) is mandatory.')
-    elif '-t' not in args:
-        print('Error: Time (-t) is mandatory.')
-    elif '-a' not in args:
-        print('Error: Area coordinates (-a) are mandatory.')
-    else:
+    # Individual parameter check
+    elif ('-o' in args) and ('-s' in args) and ('-a' in args):
         try:
             output = args[args.index('-o') + 1]
-            year = args[args.index('-y') + 1]
-            month = args[args.index('-m') + 1]
-            day = args[args.index('-d') + 1]
-            time = args[args.index('-t') + 1]
+            start_str = args[args.index('-s') + 1]
+            start_dt = datetime.datetime.strptime(start_str, "%Y-%m-%d-%H")
+            
+            # Handle optional end date for time series
+            end_dt = None
+            if '-e' in args:
+                end_str = args[args.index('-e') + 1]
+                end_dt = datetime.datetime.strptime(end_str, "%Y-%m-%d-%H")
+
             idx = args.index('-a')
             area = [float(args[idx+1]), float(args[idx+2]), 
                     float(args[idx+3]), float(args[idx+4])]
             
-            era5.load_era5_data(output, year, month, day, time, area)
+            era5.load_era5_data(output, start_dt, area, end_date=end_dt)
             
         except IndexError:
             print('Error: A flag was provided but no value followed it.')
-        except ValueError:
-            print('Error: Area coordinates must be four numbers (N W S E).')
+        except ValueError as e:
+            print(f'Error: Invalid input format. {e}')
         except Exception as e:
             print(f'An unexpected error occurred: {e}')
-
+    else:
+        print('era5vis_download: command not understood or mandatory arguments missing.'
+              'Type "era5vis_download --help" for usage information.')
 
 def era5vis_modellevel():
     """Entry point for the era5vis_modellevel application script"""

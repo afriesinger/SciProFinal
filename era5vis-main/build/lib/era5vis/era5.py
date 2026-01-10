@@ -19,16 +19,13 @@ def check_data_availability(param, level=None, time=None):
         raise FileNotFoundError(f"Data file {cfg.datafile} not found. Please download it first.")
 
     with xr.open_dataset(cfg.datafile) as ds:
-        # 1. Check if the variable (param) exists
         if param not in ds.data_vars:
             raise ValueError(f"Variable '{param}' not found in dataset. Available: {list(ds.data_vars)}")
 
-        # 2. Check if the pressure level exists (if provided)
         if level is not None:
             if level not in ds.pressure_level.values:
                 raise ValueError(f"Level {level} hPa not found. Available: {ds.pressure_level.values}")
 
-        # 3. Check if the time exists (if provided)
         if time is not None:
             try:
                 if isinstance(time, str):
@@ -62,46 +59,94 @@ def check_alpine_bounds(area):
             f"Area outside terrain bounds. Bounds: Lat [{ALP_S}, {ALP_N}], Lon [{ALP_W}, {ALP_E}]"
         )
 
-def validate_inputs(area, year, month, day, time):
-    """Performs date, time, and coordinate validation.
+def validate_inputs(area):
+   """
+    Performs coordinate and credential validation for ERA5 downloads.
+
+    This function checks if the requested geographic area is within the 
+    predefined Alpine bounds and verifies the existence of the CDS API 
+    configuration file required for authentication.
 
     Parameters
     ----------
     area : list of float
-        Coordinates [North, West, South, East]
-    year : str or int
-        Year of the data request (YYYY)
-    month : str or int
-        Month of the data request (MM)
-    day : str or int
-        Day of the data request (DD)
-    time : str
-        Time in HH:MM format
+        A list of four coordinates in the order: [North, West, South, East].
 
     Returns
     -------
     bool
-        True if all validations pass.
-    """
-    try:
-        datetime.date(int(year), int(month), int(day))
-        datetime.datetime.strptime(time, "%H:%M")
-    except ValueError as e:
-        raise ValueError(f"Input Format Error: {e}")
-        
-    check_alpine_bounds(area)
-    
-    if not os.path.exists(os.path.expanduser("~/.cdsapirc")):
-        raise FileNotFoundError("Authentication Error: ~/.cdsapirc file not found.")
-    return True
+        True if the area is within bounds and credentials exist.
 
-def load_era5_data(output_filename, year, month, day, time, area):
-    """Download data from CDS API."""
+    Raises
+    ------
+    ValueError
+        If the coordinates are outside the allowed Alpine range.
+    FileNotFoundError
+        If the ~/.cdsapirc file is missing, providing instructions for setup.
+        
+    """
+
+   #Coordinate check    
+   check_alpine_bounds(area)
+    
+    #Credential check
+   if not os.path.exists(os.path.expanduser("~/.cdsapirc")):
+        raise FileNotFoundError(
+        "\n--- CDS API Authentication Missing ---\n"
+        "To download ERA5 data, you need a credentials file.\n"
+        "1. Create a file named '.cdsapirc' in your home directory.\n"
+        "2. Add the following lines (get your key from https://cds.climate.copernicus.eu):\n\n"
+        "url: https://cds.climate.copernicus.eu/api/v2\n"
+        "key: YOUR_UID:YOUR_API_KEY\n"
+        )
+   return True
+
+def load_era5_data(output_filename, start_date, area, end_date=None):
+    """
+    Download ERA5 pressure level data from the CDS API.
+
+    The function requests temperature, wind components (u, v), and geopotential
+    data for a specified Alpine area and time.
+
+    Parameters
+    ----------
+    output_filename : str
+        The path and name of the NetCDF file to be created.
+    start_date : datetime.datetime
+        The starting date and hour for the data request.
+    area : list of float
+        Coordinates for the download area [North, West, South, East].
+    end_date : datetime.datetime, optional
+        The ending date and hour for a time-series request. If None, only
+        the `start_date` is downloaded.
+
+    Returns
+    -------
+    None
+        Downloads the data directly to the specified `output_filename`."""
+        
     if os.path.exists(output_filename):
         print(f"File '{output_filename}' exists. Skipping.")
         return
 
-    validate_inputs(area, year, month, day, time)
+    validate_inputs(area)
+    
+    years = [str(start_date.year)]
+    months = [f"{start_date.month:02d}"]
+    days = [f"{start_date.day:02d}"]
+    times = [f"{start_date.hour:02d}:00"]
+
+    #if end_date is provided and different from start_date
+    if end_date and end_date != start_date:
+        if str(end_date.year) not in years: 
+            years.append(str(end_date.year))
+        if f"{end_date.month:02d}" not in months: 
+            months.append(f"{end_date.month:02d}")
+        if f"{end_date.day:02d}" not in days: 
+            days.append(f"{end_date.day:02d}")
+        if f"{end_date.hour:02d}:00" not in times: 
+            times.append(f"{end_date.hour:02d}:00")
+    
 
     levels = [
         '450', '500', '550', '600', 
@@ -117,10 +162,10 @@ def load_era5_data(output_filename, year, month, day, time, area):
             'variable': ['temperature', 'u_component_of_wind', 
                          'v_component_of_wind', 'geopotential'],
             'pressure_level': levels,
-            'year': year, 
-            'month': month,
-            'day': day,
-            'time': time,
+            'year': years, 
+            'month': months,
+            'day': days,
+            'time': times,
             'area': area,
         },
         output_filename)
@@ -154,15 +199,15 @@ def horiz_cross_section(param, lvl, time):
     return da
 
 if __name__ == "__main__": 
-    if len(sys.argv) < 10:
-        print("Usage: python era5.py <filename> <year> <month> <day> <time> <N> <W> <S> <E>")
+    if len(sys.argv) < 7:
+        print("Usage: python era5.py <filename> <YYYY-MM-DD-HH> <N> <W> <S> <E>" )
     else:
         try:
             output_filename = sys.argv[1]
-            year, month, day, time = sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
-            coords = [float(sys.argv[6]), float(sys.argv[7]), 
-                      float(sys.argv[8]), float(sys.argv[9])]
+            date = datetime.datetime.strptime(sys.argv[2], "%Y-%m-%d-%H")
+            coords = [float(sys.argv[3]), float(sys.argv[4]), 
+                      float(sys.argv[5]), float(sys.argv[6])]
             
-            load_era5_data(output_filename , year, month, day, time, coords)
+            load_era5_data(output_filename , date, coords)
         except Exception as e:
             print(f"\nERROR: {e}")

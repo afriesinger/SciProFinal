@@ -303,6 +303,9 @@ def compute_terrain_intersection(
     points = np.stack([lat_grid.ravel(), lon_grid.ravel()], axis=-1)
     terrain_on_era5_values = interp_func(points).reshape(lat_grid.shape)
     
+    # Convert back to int32 to match terrain data type
+    terrain_on_era5_values = np.round(np.nan_to_num(terrain_on_era5_values, nan=0)).astype(np.int32)
+    
     terrain_on_era5 = xr.DataArray(
         terrain_on_era5_values,
         dims=['latitude', 'longitude'],
@@ -310,11 +313,10 @@ def compute_terrain_intersection(
     )
        
     # Convert geopotential to geopotential height
-    if 'z' in era5_data:
-        geopotential_height = era5_data['z'] / G
-        geopotential_height.attrs = {'units': 'm', 'long_name': 'Geopotential height'}
+    if 'gph' in era5_data:
+        geopotential_height = era5_data['gph']
     else:
-        raise ValueError("ERA5 dataset must contain 'z' (geopotential) variable")
+        raise ValueError("ERA5 dataset must contain 'gph' (geopotential-height) variable")
     
     # Create terrain intersection mask
     terrain_broadcast = terrain_on_era5.broadcast_like(geopotential_height)
@@ -327,13 +329,13 @@ def compute_terrain_intersection(
     # Create output dataset
     result = era5_data.copy()
     result['terrain'] = terrain_mask
-    result['terrain_elevation'] = terrain_on_era5
+    result['terrain_elevation'] = terrain_on_era5.astype(np.int32)
     result['terrain_elevation'].attrs = {
         'units': 'm',
         'long_name': 'SRTM terrain elevation',
         'source': 'SRTM'
     }
-    result['geopotential_height'] = geopotential_height
+    
     
     return result
 
