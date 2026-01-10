@@ -32,7 +32,7 @@ def load_terrain_from_tif(
     Returns
     -------
     terrain : np.ndarray
-        2D elevation array
+        2D elevation array (int32) with no-data values filled using neighbor mean
     lats : np.ndarray
         1D latitude array (decreasing, N to S)
     lons : np.ndarray
@@ -41,6 +41,7 @@ def load_terrain_from_tif(
         Approximate resolution in meters
     """
     import rasterio
+    from scipy.ndimage import uniform_filter
     
     if not os.path.exists(tif_path):
         raise FileNotFoundError(
@@ -49,7 +50,7 @@ def load_terrain_from_tif(
         )
     
     with rasterio.open(tif_path) as ds:
-        terrain = ds.read(1)
+        terrain = ds.read(1)  # Keep as int16 first
         bounds = ds.bounds
         
     lat_min, lat_max = bounds.bottom, bounds.top
@@ -58,12 +59,36 @@ def load_terrain_from_tif(
     lats = np.linspace(lat_max, lat_min, terrain.shape[0])
     lons = np.linspace(lon_min, lon_max, terrain.shape[1])
     
+    # Identify no-data values: -32768 is standard sentinel for int16 GeoTIFFs
+    # Also mark any elevation < 0m as no-data (water, artifacts, errors)
+    no_data_mask = (terrain == -32768) | (terrain < 0)
+    no_data_count_initial = no_data_mask.sum()
+    
+    terrain = terrain.astype(np.float32)
+    
+    # Fill no-data values iteratively using 3x3 neighborhood mean
+    if no_data_mask.any():
+        max_iterations = 10
+        for iteration in range(max_iterations):         
+            weighted_sum = uniform_filter(np.where(no_data_mask, 0, terrain), 
+                                         size=3, mode='constant', cval=0)
+            weight_count = uniform_filter(np.where(no_data_mask, 0, 1).astype(float), 
+                                         size=3, mode='constant', cval=0)
+            # Avoid division by zero
+            weight_count[weight_count == 0] = 1
+            neighborhood_mean = weighted_sum / weight_count
+            
+            can_fill = (weight_count > 0) & no_data_mask
+            terrain[can_fill] = neighborhood_mean[can_fill]
+            no_data_mask = no_data_mask & ~can_fill
+            
+            filled_this_iteration = can_fill.sum()
+
+    terrain = np.round(terrain).astype(np.int32)
+    
     # Estimate resolution in meters
     mean_lat = 0.5 * (lat_min + lat_max)
     resolution_m = int(round((lons[1] - lons[0]) * 111000.0 * np.cos(np.radians(mean_lat))))
-    
-    print(f"Loaded terrain: {terrain.shape}, resolution ~{resolution_m}m")
-    print(f"  Bounds: lat({lat_min:.2f}, {lat_max:.2f}), lon({lon_min:.2f}, {lon_max:.2f})")
     
     return terrain, lats, lons, resolution_m
 
@@ -82,7 +107,7 @@ def downsample_terrain(
     Parameters
     ----------
     terrain : np.ndarray
-        2D elevation array
+        2D elevation array (may contain NaN for no-data)
     lats : np.ndarray
         1D latitude array (decreasing, N to S)
     lons : np.ndarray
@@ -111,9 +136,9 @@ def downsample_terrain(
     if downsample_factor <= 1:
         return terrain, lats, lons, source_resolution_m
     
-    # Smooth before downsampling (anti-aliasing)
-    terrain_smooth = gaussian_filter(terrain.astype(float), sigma=downsample_factor / 2)
-    terrain_ds = scipy_zoom(terrain_smooth, 1 / downsample_factor, order=1)
+    # Downsample using bilinear interpolation, then convert back to int32
+    terrain_ds = scipy_zoom(terrain.astype(float), 1 / downsample_factor, order=1)
+    terrain_ds = np.round(terrain_ds).astype(np.int32)
     
     rows_ds, cols_ds = terrain_ds.shape
     lats_ds = np.linspace(lats[0], lats[-1], rows_ds)
@@ -121,6 +146,7 @@ def downsample_terrain(
     actual_resolution_m = downsample_factor * source_resolution_m
     
     print(f"Downsampled: {terrain.shape} -> {terrain_ds.shape}, resolution ~{actual_resolution_m}m")
+    print(f"  Elevation range: {terrain_ds.min()}m to {terrain_ds.max()}m")
     
     return terrain_ds, lats_ds, lons_ds, actual_resolution_m
 
@@ -130,8 +156,8 @@ def compute_terrain_aspect_dataset(
     lats: np.ndarray,
     lons: np.ndarray,
     resolution_m: float,
-    min_elevation: float = 500.0,
-    min_slope: float = 1.0,
+    min_elevation: float = 50.0,
+    min_slope: float = 3.0,
     smooth_sigma: float = 1.5
 ) -> xr.Dataset:
     """
@@ -167,16 +193,18 @@ def compute_terrain_aspect_dataset(
     dz_dy, dz_dx = np.gradient(terrain_smooth, resolution_m)
     
     aspect_deg = np.degrees(np.arctan2(-dz_dx, -dz_dy)) % 360
-    
     slope_deg = np.degrees(np.arctan(np.sqrt(dz_dx**2 + dz_dy**2)))
+    
+    aspect_deg_int = np.round(aspect_deg).astype(np.int32) % 360
+    slope_deg_int = np.round(slope_deg).astype(np.int32)
     
     terrain_mask = (terrain >= min_elevation) & (slope_deg >= min_slope)
     
     ds = xr.Dataset(
         {
             'elevation': (['latitude', 'longitude'], terrain),
-            'aspect_deg': (['latitude', 'longitude'], aspect_deg),
-            'slope': (['latitude', 'longitude'], slope_deg),
+            'aspect_deg': (['latitude', 'longitude'], aspect_deg_int),
+            'slope': (['latitude', 'longitude'], slope_deg_int),
             'terrain_mask': (['latitude', 'longitude'], terrain_mask),
         },
         coords={

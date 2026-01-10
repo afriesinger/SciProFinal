@@ -421,3 +421,5 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+.vscode/launch.json
+era5vis-main/era5vis/visualization.ipynb

@@ -40,10 +40,13 @@ def select_h_data(lon, start_lat, end_lat):
     
     # select h data
     # select h for given area
-    oned_h = ds_h['h_nd'].sel(longitude=lon, method='nearest') 
+    #oned_h = ds_h['h_nd'].sel(longitude=lon, method='nearest') 
+    oned_h = ds_h['H'].sel(longitude=lon, method='nearest')
     crossec_h = oned_h.sel(latitude=slice(end_lat, start_lat))
     h_latitudes = crossec_h.latitude
-    h_elevation = crossec_h.elevation
+    #h_elevation = crossec_h.elevation
+    print(crossec_h.data_vars)
+    h_elevation = crossec_h.terrain_elevation
 
     return crossec_h, h_latitudes, h_elevation
 
@@ -113,9 +116,10 @@ def create_vertical_crosssec(elevation, latitudes, h, h_elevation, h_latitudes):
 # main block
 if __name__ == "__main__":
     # open terrain data
-    ds_terrain = xr.open_dataset('terrain_cache/terrain_aspect_1km.nc')
+    ds_terrain = xr.open_dataset('/media/afriesinger/Volume/Projekte/Gleitschirmfliegen/Studium/Programming/SciProFinal/era5vis-main/era5vis/terrain_cache/terrain_aspect_1km.nc')
     # open h_nd data
-    ds_h = xr.open_dataset('hnd_mockup_data.nc') 
+    #ds_h = xr.open_dataset('hnd_mockup_data.nc') 
+    ds_h = xr.open_dataset('/media/afriesinger/Volume/Projekte/Gleitschirmfliegen/Studium/Programming/SciProFinal/era5vis-main/era5vis/data/era5_test_with_NH.nc') 
 
 
     # get lon,lat from arg
