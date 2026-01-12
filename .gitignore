@@ -14,10 +14,7 @@
 
 # Large cache files
 *.tif
-*.nc
 era5vis-main/era5vis/terrain_cache/srtm_alps_30m.tif
-era5vis-main/era5vis/data/era5_test_with_NH.nc
-era5vis-main/era5vis/data/era5_example_dataset.nc
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -430,3 +427,5 @@ era5vis-main/era5vis/H_parameter_all_levels_with_blue_overlay.png
 .gitignore
 era5vis-main/era5vis/data/andi.nc
 era5vis-main/era5vis/H_parameter_1000-700hPa_with_blue_overlay.png
+era5vis-main/era5vis/data/era5_test_with_NH.nc
+era5vis-main/era5vis/data/era5_example_dataset.nc

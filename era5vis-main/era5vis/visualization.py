@@ -45,7 +45,7 @@ def select_h_data(lon, start_lat, end_lat):
     crossec_h = oned_h.sel(latitude=slice(end_lat, start_lat))
     h_latitudes = crossec_h.latitude
     #h_elevation = crossec_h.elevation
-    print(crossec_h.data_vars)
+   
     h_elevation = crossec_h.terrain_elevation
 
     return crossec_h, h_latitudes, h_elevation
