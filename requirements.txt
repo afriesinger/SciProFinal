@@ -8,3 +8,4 @@ rasterio
 cdsapi
 era5vis
 setuptools
+argparse

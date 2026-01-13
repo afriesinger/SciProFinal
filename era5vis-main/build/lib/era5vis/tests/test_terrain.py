@@ -15,7 +15,6 @@ import sys
 # Add parent directory to path to allow importing terrain module directly
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# Import terrain module - will be tracked by coverage
 import terrain
 
 
@@ -24,68 +23,80 @@ class TestLoadTerrainFromTif:
     
     def test_file_not_found(self):
         """Test that FileNotFoundError is raised for missing file."""
+        pytest.importorskip("rasterio")
         with pytest.raises(FileNotFoundError):
             terrain.load_terrain_from_tif(tif_path="./nonexistent/file.tif")
     
-    @patch('rasterio.open')
-    def test_successful_load(self, mock_rasterio):
+    def test_successful_load(self):
         """Test successful terrain loading from GeoTiff."""
-        # Mock rasterio
-        mock_ds = MagicMock()
-        mock_ds.__enter__.return_value = mock_ds
-        mock_ds.__exit__.return_value = None
+        # Skip if rasterio not available
+        try:
+            import rasterio
+        except ImportError:
+            pytest.skip("rasterio not installed")
         
-        # Create mock terrain data
-        terrain_data = np.random.rand(100, 200).astype(np.float32) * 4000
-        mock_ds.read.return_value = terrain_data
-        
-        # Mock bounds (lat_min, lon_min, lat_max, lon_max)
-        mock_bounds = Mock()
-        mock_bounds.bottom = 46.0
-        mock_bounds.top = 47.0
-        mock_bounds.left = 10.0
-        mock_bounds.right = 11.0
-        mock_ds.bounds = mock_bounds
-        mock_rasterio.return_value = mock_ds
-        
-        # Call function
-        with patch('os.path.exists', return_value=True):
-            elev, lats, lons, res = terrain.load_terrain_from_tif("mock.tif")
-        
-        # Assertions
-        assert elev.shape == (100, 200)
-        assert len(lats) == 100
-        assert len(lons) == 200
-        assert res > 0
-        assert lats[0] > lats[-1]  # Decreasing (N to S)
-        assert lons[0] < lons[-1]  # Increasing (W to E)
+        with patch('rasterio.open') as mock_rasterio:
+            mock_ds = MagicMock()
+            mock_ds.__enter__.return_value = mock_ds
+            mock_ds.__exit__.return_value = None
+            
+            # Create mock terrain data
+            terrain_data = np.random.rand(100, 200).astype(np.float32) * 4000
+            mock_ds.read.return_value = terrain_data
+            
+            # Mock bounds (lat_min, lon_min, lat_max, lon_max)
+            mock_bounds = Mock()
+            mock_bounds.bottom = 46.0
+            mock_bounds.top = 47.0
+            mock_bounds.left = 10.0
+            mock_bounds.right = 11.0
+            mock_ds.bounds = mock_bounds
+            mock_rasterio.return_value = mock_ds
+            
+            # Call function
+            with patch('os.path.exists', return_value=True):
+                elev, lats, lons, res = terrain.load_terrain_from_tif("mock.tif")
+            
+            # Assertions
+            assert elev.shape == (100, 200)
+            assert len(lats) == 100
+            assert len(lons) == 200
+            assert res > 0
+            assert lats[0] > lats[-1]  # Decreasing (N to S)
+            assert lons[0] < lons[-1]  # Increasing (W to E)
     
-    @patch('rasterio.open')
-    def test_resolution_calculation(self, mock_rasterio):
+    def test_resolution_calculation(self):
         """Test that resolution is calculated correctly in meters."""
-        mock_ds = MagicMock()
-        mock_ds.__enter__.return_value = mock_ds
-        mock_ds.__exit__.return_value = None
+        # Skip if rasterio not available
+        try:
+            import rasterio
+        except ImportError:
+            pytest.skip("rasterio not installed")
         
-        terrain_data = np.ones((1000, 1000))
-        mock_ds.read.return_value = terrain_data
-        
-        # Set bounds for ~1 degree spacing with correct number of points
-        # 1000 points per degree → ~111m per point at equator
-        # At ~46.5°N, multiply by cos(46.5°) ≈ 0.69 → ~77m
-        mock_bounds = Mock()
-        mock_bounds.bottom = 46.0
-        mock_bounds.top = 47.0
-        mock_bounds.left = 10.0
-        mock_bounds.right = 11.0
-        mock_ds.bounds = mock_bounds
-        mock_rasterio.return_value = mock_ds
-        
-        with patch('os.path.exists', return_value=True):
-            _, _, _, res = terrain.load_terrain_from_tif("mock.tif")
-        
-        # 1000 points per 1 degree at ~46.5°N should give ~76-77m resolution
-        assert 70 < res < 90
+        with patch('rasterio.open') as mock_rasterio:
+            mock_ds = MagicMock()
+            mock_ds.__enter__.return_value = mock_ds
+            mock_ds.__exit__.return_value = None
+            
+            terrain_data = np.ones((1000, 1000))
+            mock_ds.read.return_value = terrain_data
+            
+            # Set bounds for ~1 degree spacing with correct number of points
+            # 1000 points per degree → ~111m per point at equator
+            # At ~46.5°N, multiply by cos(46.5°) ≈ 0.69 → ~77m
+            mock_bounds = Mock()
+            mock_bounds.bottom = 46.0
+            mock_bounds.top = 47.0
+            mock_bounds.left = 10.0
+            mock_bounds.right = 11.0
+            mock_ds.bounds = mock_bounds
+            mock_rasterio.return_value = mock_ds
+            
+            with patch('os.path.exists', return_value=True):
+                _, _, _, res = terrain.load_terrain_from_tif("mock.tif")
+            
+            # 1000 points per 1 degree at ~46.5°N should give ~76-77m resolution
+            assert 70 < res < 90
 
 
 class TestDownsampleTerrain:
@@ -346,16 +357,17 @@ class TestComputeTerrainIntersection:
         lats = np.array([46.0, 46.25, 46.5, 46.75, 47.0])
         lons = np.array([10.0, 10.5, 11.0, 11.5, 12.0])
         
-        # Create mock geopotential field (z)
+        # Create mock geopotential field
         # Values decrease with height (pressure level), typical of geopotential
-        z = np.zeros((len(times), len(pressures), len(lats), len(lons)))
+        gph = np.zeros((len(times), len(pressures), len(lats), len(lons)))
         for p_idx, p in enumerate(pressures):
             # Higher pressure = lower altitude = larger geopotential
-            z[:, p_idx, :, :] = (1000 - p) * 100 + 50000
+            gph[:, p_idx, :, :] = (1000 - p) * 100 + 50000
         
         ds = xr.Dataset(
             {
-                'z': (['valid_time', 'pressure_level', 'latitude', 'longitude'], z),
+                'z': (['valid_time', 'pressure_level', 'latitude', 'longitude'], gph),
+                'gph': (['valid_time', 'pressure_level', 'latitude', 'longitude'], gph),
                 'u': (['valid_time', 'pressure_level', 'latitude', 'longitude'], 
                       np.random.randn(len(times), len(pressures), len(lats), len(lons))),
             },
@@ -401,7 +413,6 @@ class TestComputeTerrainIntersection:
         
         assert 'terrain' in result.data_vars
         assert 'terrain_elevation' in result.data_vars
-        assert 'geopotential_height' in result.data_vars
     
     def test_output_maintains_era5_structure(self, sample_era5_dataset, sample_terrain_dataset):
         """Test that output maintains ERA5 dimension structure."""
@@ -424,21 +435,18 @@ class TestComputeTerrainIntersection:
         assert result['terrain'].dtype == bool
     
     def test_geopotential_height_conversion(self, sample_era5_dataset, sample_terrain_dataset):
-        """Test that geopotential is converted to height correctly."""
+        """Test that function processes geopotential height correctly."""
         result = terrain.compute_terrain_intersection(
             sample_era5_dataset, sample_terrain_dataset
         )
         
-        # gph should be z / G
-        expected_gph = sample_era5_dataset['z'] / terrain.G
-        np.testing.assert_allclose(
-            result['geopotential_height'].values,
-            expected_gph.values,
-            rtol=1e-6
-        )
+        # Function should use gph for comparison but doesn't return it separately
+        # Just verify that terrain mask was created successfully
+        assert 'terrain' in result.data_vars
+        assert result['terrain'].dtype == bool
     
     def test_missing_z_variable_raises_error(self):
-        """Test that ValueError is raised when 'z' is not in ERA5 dataset."""
+        """Test that ValueError is raised when 'gph' is not in ERA5 dataset."""
         # Create sample terrain dataset
         terrain_lats = np.linspace(47.5, 45.5, 100)
         terrain_lons = np.linspace(9.5, 12.5, 150)
@@ -454,7 +462,7 @@ class TestComputeTerrainIntersection:
             }
         )
         
-        # Create ERA5 dataset WITHOUT 'z' variable
+        # Create ERA5 dataset WITHOUT 'gph' variable
         bad_era5 = xr.Dataset(
             {
                 'u': (['valid_time', 'pressure_level', 'latitude', 'longitude'],
@@ -468,7 +476,7 @@ class TestComputeTerrainIntersection:
             }
         )
         
-        with pytest.raises(ValueError, match="must contain 'z'"):
+        with pytest.raises(ValueError, match="must contain 'gph'"):
             terrain.compute_terrain_intersection(bad_era5, terrain_ds)
     
     def test_terrain_elevation_interpolated(self, sample_era5_dataset, sample_terrain_dataset):

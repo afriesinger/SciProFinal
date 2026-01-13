@@ -15,7 +15,6 @@ import sys
 # Add parent directory to path to allow importing terrain module directly
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# Import terrain module - will be tracked by coverage
 import terrain
 
 

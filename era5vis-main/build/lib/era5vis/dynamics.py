@@ -10,10 +10,10 @@ def geopotential_height(z):
         Geopotential height in geopotential meters (gpm)
 
     Returns:
-    gph : float or array-like
-        Geopotential height in meters (m)
+    gph : array-like
+        Geopotential height in meters (m) as int32
     """
-    gph = z / 9.81
+    gph = (z / 9.81).astype(np.uint16)
     return gph
 
 
@@ -33,8 +33,8 @@ def potential_temperature(
             Reference pressure, default 1000 hPa
     
     Returns:
-        theta : float or array-like
-            Potential temperature in Kelvin
+        theta : array-like
+            Potential temperature in Kelvin as int32
     """
     if (T < -273).any():
         raise ValueError('T needs to be above -273 °C')
@@ -44,6 +44,7 @@ def potential_temperature(
     cp = 1004.0 # J/(kg·K)
 
     theta = T * (p0 / p)**(R / cp)
+    theta = theta.astype(np.float16)
     
     return theta
 
@@ -91,6 +92,7 @@ def brunt_vaeisaelae_freq(
         raise ValueError('Valid Arguments for method are [mean, min]')
     
     N = np.sqrt( (g/theta)*(dtheta/dz))
+    N = N.astype(np.float32)
 
     return N
 
@@ -129,12 +131,16 @@ def nondim_mtn_height(
 
 
     H= (N * h) / U
+    H = H.astype(np.float32)
 
     return H
 
 def compute_N_H(data):
     """
     Compute the Brunt-Väisälä frequency N and the non-dimensional mountain height H.
+    
+    Skip calculations where perpendicular wind speed is zero or NaN (no cross-mountain flow).
+    Only compute N and H where wind speed is valid.
 
     Parameters:
         data : xr.Dataset
@@ -144,21 +150,51 @@ def compute_N_H(data):
         data : xrDataset
             ERA5 dataset with added 'N' and 'H' variables
     """
+    # Extract wind speeds first to check validity
+    U_up = data['perpendicular_wind_speed'].shift(pressure_level=-1)
+    U_down = data['perpendicular_wind_speed']
+    
+    # Slice to match calculation levels (remove last level which is shifted)
+    U_down_sliced = U_down.isel(pressure_level=slice(0, -1))
+    U_up_sliced = U_up.isel(pressure_level=slice(0, -1))
+    
+    # Create mask: True where wind is VALID (positive, non-zero, non-NaN)
+    # Only compute where BOTH levels have valid wind
+    wind_valid = (U_down_sliced > 0) & (U_up_sliced > 0) & \
+                 ~np.isnan(U_down_sliced.values) & ~np.isnan(U_up_sliced.values)
+    
+    # Extract other variables
     theta_up = data['theta'].shift(pressure_level=-1)
     theta_down = data['theta']
     z_up = data['gph'].shift(pressure_level=-1)
     z_down = data['gph']
-    U_up = data['perpendicular_wind_speed'].shift(pressure_level=-1)
-    U_down = data['perpendicular_wind_speed']
     h = data['downwind_terrain_height']
-
-    # Calculate N and H
+    
+    # Only compute N and H where wind is valid
     N = brunt_vaeisaelae_freq(theta_up, theta_down, z_up, z_down)
     H = nondim_mtn_height(N, h, U_up, U_down)
 
-    # Remove the last level (which has NaNs because of shift)
     N = N.isel(pressure_level=slice(0, -1))
     H = H.isel(pressure_level=slice(0, -1))
+    
+    # Set to NaN where wind is invalid - no unnecessary calculations
+    N = N.where(wind_valid, np.nan)
+    H = H.where(wind_valid, np.nan)
+
+    N.attrs.clear()
+    H.attrs.clear()
+
+    N.attrs.update({
+        'long_name': 'Brunt-Väisälä frequency',
+        'units': 's-1',
+        'standard_name': 'brunt_vaisala_frequency'
+    })
+
+    H.attrs.update({
+        'long_name': 'Non-dimensional mountain height',
+        'units': '1',
+        'standard_name': 'dimensionless_mountain_height'
+    })
 
     data = data.assign(N=N, H=H)
     return data

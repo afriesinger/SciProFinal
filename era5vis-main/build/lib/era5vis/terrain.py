@@ -266,7 +266,7 @@ def compute_terrain_intersection(
     Parameters
     ----------
     era5_data : xr.Dataset
-        ERA5 dataset containing 'z' (geopotential) variable
+        ERA5 dataset containing 'gph' (geopotential-height) variable
     terrain_ds : xr.Dataset
         Terrain aspect dataset from terrain.load_terrain_aspect_dataset()
     
@@ -276,7 +276,6 @@ def compute_terrain_intersection(
         ERA5 dataset with added terrain information:
         - terrain: boolean mask where pressure level is below terrain
         - terrain_elevation: SRTM elevation interpolated to ERA5 grid
-        - geopotential_height: converted from geopotential
     """
     from scipy.interpolate import RegularGridInterpolator
     
@@ -313,11 +312,10 @@ def compute_terrain_intersection(
     )
        
     # Convert geopotential to geopotential height
-    if 'z' in era5_data:
-        geopotential_height = era5_data['z'] / G
-        geopotential_height.attrs = {'units': 'm', 'long_name': 'Geopotential height'}
+    if 'gph' in era5_data:
+        geopotential_height = era5_data['gph']
     else:
-        raise ValueError("ERA5 dataset must contain 'z' (geopotential) variable")
+        raise ValueError("ERA5 dataset must contain 'gph' (geopotential-height) variable")
     
     # Create terrain intersection mask
     terrain_broadcast = terrain_on_era5.broadcast_like(geopotential_height)
@@ -330,13 +328,13 @@ def compute_terrain_intersection(
     # Create output dataset
     result = era5_data.copy()
     result['terrain'] = terrain_mask
-    result['terrain_elevation'] = terrain_on_era5
+    result['terrain_elevation'] = terrain_on_era5.astype(np.int32)
     result['terrain_elevation'].attrs = {
         'units': 'm',
         'long_name': 'SRTM terrain elevation',
         'source': 'SRTM'
     }
-    result['geopotential_height'] = geopotential_height
+    
     
     return result
 
