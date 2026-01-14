@@ -181,6 +181,8 @@ def load_era5_data(output_filename, start_date, area, end_date=None):
         },
         output_filename)
 
+        ## TODO: return dataset
+
 def horiz_cross_section(param, lvl, time):
     """Extract a horizontal cross section from the ERA5 data.
     
