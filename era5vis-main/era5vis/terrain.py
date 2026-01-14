@@ -145,9 +145,6 @@ def downsample_terrain(
     lons_ds = np.linspace(lons[0], lons[-1], cols_ds)
     actual_resolution_m = downsample_factor * source_resolution_m
     
-    print(f"Downsampled: {terrain.shape} -> {terrain_ds.shape}, resolution ~{actual_resolution_m}m")
-    print(f"  Elevation range: {terrain_ds.min()}m to {terrain_ds.max()}m")
-    
     return terrain_ds, lats_ds, lons_ds, actual_resolution_m
 
 
@@ -249,7 +246,6 @@ def load_terrain_aspect_dataset(
         raise FileNotFoundError(f"Terrain aspect cache not found: {cache_path}")
     
     ds = xr.open_dataset(cache_path)
-    print(f"Loaded terrain aspect dataset: {ds.sizes['latitude']} x {ds.sizes['longitude']}")
     return ds
 
 
@@ -278,6 +274,11 @@ def compute_terrain_intersection(
         - terrain_elevation: SRTM elevation interpolated to ERA5 grid
     """
     from scipy.interpolate import RegularGridInterpolator
+
+    if 'gph' in era5_data:
+        geopotential_height = era5_data['gph']
+    else:
+        raise ValueError("ERA5 dataset must contain 'gph' (geopotential-height) variable")
     
     
     terrain_elev = terrain_ds['elevation'].values
@@ -311,12 +312,6 @@ def compute_terrain_intersection(
         coords={'latitude': era5_data.latitude, 'longitude': era5_data.longitude}
     )
        
-    # Convert geopotential to geopotential height
-    if 'gph' in era5_data:
-        geopotential_height = era5_data['gph']
-    else:
-        raise ValueError("ERA5 dataset must contain 'gph' (geopotential-height) variable")
-    
     # Create terrain intersection mask
     terrain_broadcast = terrain_on_era5.broadcast_like(geopotential_height)
     terrain_mask = geopotential_height < terrain_broadcast
@@ -334,8 +329,7 @@ def compute_terrain_intersection(
         'long_name': 'SRTM terrain elevation',
         'source': 'SRTM'
     }
-    
-    
+       
     return result
 
 def interpolate_to_grid(source_dataset, target_dataset):
@@ -357,14 +351,11 @@ def interpolate_to_grid(source_dataset, target_dataset):
     target_lats = target_dataset.latitude.values
     target_lons = target_dataset.longitude.values
     
-    # Use xarray's interp method with vectorized operations
-    # Create new coordinates for target grid
     new_coords = {
         'latitude': target_lats,
         'longitude': target_lons,
     }
     
-    # Interpolate using xarray's built-in method (handles all dims at once)
     result = source_dataset.interp(
         coords=new_coords,
         method='linear',
