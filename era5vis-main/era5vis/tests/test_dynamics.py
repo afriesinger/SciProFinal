@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from era5vis import geopotential_height 
+from era5vis.dynamics import geopotential_height 
 
 def test_geopotential_height_conversion():
     # 9.81 / 9.81 = 1
