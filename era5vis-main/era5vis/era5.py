@@ -1,5 +1,16 @@
 """Functions interacting with the ERA5 dataset."""
 
+"""
+This module provides functions for:
+- Validating geographic bounds for the Alpine region.
+- Authenticating and downloading pressure-level data from the CDS API.
+- Checking data availability within local NetCDF datasets.
+- Extracting horizontal cross-sections of atmospheric parameters.
+
+Author: Lawrence Ansu Mensah
+Date: 2026-01-14
+"""
+
 import os
 import sys
 import cdsapi
