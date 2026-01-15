@@ -152,7 +152,7 @@ def compute_terrain_aspect_dataset(
     terrain: np.ndarray,
     lats: np.ndarray,
     lons: np.ndarray,
-    resolution_m: float,
+    resolution_m: float = 1000,
     min_elevation: float = 50.0,
     min_slope: float = 3.0,
     smooth_sigma: float = 1.5
