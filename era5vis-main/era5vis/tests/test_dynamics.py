@@ -9,8 +9,8 @@ def test_geopotential_height_single_value():
     
 
 def test_geopotential_height_array():
-   # Test with a numpy array
-     z = np.array([0, 9810, 19620])
+    # Test with a numpy array
+    z = np.array([0, 9810, 19620])
     expected = np.array([0, 1000, 2000], dtype=np.uint16)
     result = geopotential_height(z)
     np.testing.assert_array_equal(result, expected)

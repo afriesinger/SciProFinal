@@ -226,24 +226,41 @@ def compute_terrain_aspect_dataset(
 
 
 def load_terrain_aspect_dataset(
-    cache_path: str = "./terrain_cache/terrain_aspect_1km.nc"
+    cache_path: str = None
 ) -> xr.Dataset:
-
     """
-    Load pre-computed terrain aspect dataset from NetCDF file.
+    Load pre-computed terrain aspect dataset from package data.
 
     Parameters
     ----------
-    cache_path : str
-        Path to the terrain aspect cache file (default: ./terrain_cache/terrain_aspect_1km.nc)
+    cache_path : str, optional
+        Path to the terrain aspect cache file. If None, loads from package data.
+        Can be overridden for custom/local cache locations.
 
     Returns
     -------
     xr.Dataset
         xarray Dataset containing terrain elevation, aspect, slope, and mask
     """
+    import sys
+    
+    if cache_path is None:
+        # Use importlib.resources for Python 3.9+
+        if sys.version_info >= (3, 9):
+            from importlib.resources import files
+            package_data = files('era5vis').joinpath('data/terrain_aspect_1km.nc')
+            cache_path = str(package_data)
+        else:
+            # Fallback for Python 3.7-3.8
+            import importlib_resources
+            package_data = importlib_resources.files('era5vis').joinpath('data/terrain_aspect_1km.nc')
+            cache_path = str(package_data)
+    
     if not os.path.exists(cache_path):
-        raise FileNotFoundError(f"Terrain aspect cache not found: {cache_path}")
+        raise FileNotFoundError(
+            f"Terrain aspect cache not found: {cache_path}\n"
+            "Make sure the terrain_aspect_1km.nc file is included in the package data."
+        )
     
     ds = xr.open_dataset(cache_path)
     return ds
