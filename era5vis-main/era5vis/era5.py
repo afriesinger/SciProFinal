@@ -133,12 +133,12 @@ def load_era5_data(output_filename, start_date, area, end_date=None):
 
     Returns
     -------
-    None
-        Downloads the data directly to the specified `output_filename`."""
+    xarray.Dataset
+       The downloaded ERA5 data loaded into an xarray object."""
         
     if os.path.exists(output_filename):
         print(f"File '{output_filename}' exists. Skipping.")
-        return
+        return xr.open_dataset(output_filename)
 
     validate_inputs(area)
     
@@ -181,7 +181,7 @@ def load_era5_data(output_filename, start_date, area, end_date=None):
         },
         output_filename)
 
-        ## TODO: return dataset
+        return xr.open_dataset(output_filename)
 
 def horiz_cross_section(param, lvl, time):
     """Extract a horizontal cross section from the ERA5 data.
