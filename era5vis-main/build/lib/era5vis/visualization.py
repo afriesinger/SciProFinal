@@ -2,11 +2,14 @@
 Module for the visualization of the non dimensional mountain height calculated from ERA5 data.
 
 This module provides functions for:
+    - selection of data for a south to north vertical crosssection
+    - applying a terrain mask to data of H
+    - plotting a vertical crosssection of H including terrain
 
-Requires: 
+Requires: Netcdf file which includes H, color coded H, terrain elevation in pressure levels 
 
 Author: Anna Buchhauser
-Date: 2026-01-04
+Date: 2026-01-14
 """
 import sys
 import os.path
@@ -14,122 +17,166 @@ import os.path
 import xarray as xr
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
+
+
 
 # needed functions
+def height_to_pressure(z):
+    """
+    Convert height (m) to pressure (hPa) using standard atmosphere 
+    conditions and the barometric formula.
 
-# data selection
-def select_terrain_data(lon, start_lat, end_lat):
-    '''
-    This function selects wanted area for a vertical cross section 
-    from the terrain dataset. 
-    '''
-    # select terrain data
-    # select terrain mask for given area
-    oned_mask = ds_terrain['terrain_mask'].sel(longitude=lon, method='nearest') 
-    crossec_mask = oned_mask.sel(latitude=slice(end_lat, start_lat))
-    # select elevation for given area
-    oned_elevation = ds_terrain['elevation'].sel(longitude=lon, method='nearest') 
-    crossec_elevation = oned_elevation.sel(latitude=slice(end_lat, start_lat))
-    latitudes = crossec_elevation.latitude
-    # apply terrain mask
-    masked_elevation = np.where(crossec_mask, crossec_elevation, np.nan)
+    Parameters
+    ----------
+    z: float
+        terrain elevation in m
 
-    return masked_elevation, latitudes
-
-def select_h_data(lon, start_lat, end_lat):
+    Returns
+    -------
+    p: float
+        pressure at terrain height in hPa
+    """
     
-    # select h data
-    # select h for given area
-    #oned_h = ds_h['h_nd'].sel(longitude=lon, method='nearest') 
-    oned_h = ds_h['H'].sel(longitude=lon, method='nearest')
-    crossec_h = oned_h.sel(latitude=slice(end_lat, start_lat))
-    h_latitudes = crossec_h.latitude
-    #h_elevation = crossec_h.elevation
-   
-    h_elevation = crossec_h.terrain_elevation
+    p0 = 1013.25  # standard pressure (hPa)
+    T0 = 288.15   # standard temperature (K)
+    g = 9.81   # gravitational constant
+    R = 287.05   # specific gas constant (J kg^-1 K^-1)
+    L = 0.0065    # temperature lapse rate (K/m)
 
-    return crossec_h, h_latitudes, h_elevation
+    p = p0 * (1 - L * z / T0) ** (g / (R * L))   # barometric formula
 
-# save produced figuer
-def save_fig():
-    '''Save the produced plot as png to a specified directory.'''
+    return p
 
-    # check wether directory was specified
-    if '--output-dir' in sys.argv:
-        index = sys.argv.index('--output-dir')
-        output_dir = sys.argv[index + 1]
-            
-        # check if directory exists
-        if os.path.isdir(output_dir):
-            # save in specified directory
-            path = os.path.join(output_dir, f'h_nd_vertical_crossection.png')
-            plt.savefig(path)
-        else:
-            raise NameError('This directory does not exist.')
-            sys.exit()
-                
-    else:            
-        # save in working directory
-        plt.savefig(f'h_nd_vertical_crosssection.png')
+def add_color_code(ds):
+    """
+    Add a variable to the dataset that indicates the flow situation 
+    based on H with colors. Red is blocked flow, green is flow over 
+    and blue is uneffected flow.
 
-        
-# create plots
-def create_vertical_crosssec(elevation, latitudes, h, h_elevation, h_latitudes):
-    '''
-    This function plots a vertical cross-section of the selected area, 
-    displaying the terrain as well as the non-dimesnional mountain height.
-    '''
-
-    # convert h to numpy array
-    h_nd = h.values
+    Parameters
+    ----------
+    ds: dataset
+        dataset containing all variables
+    """
     
-    # meshgrid for plotting h
-    LAT, Z = np.meshgrid(h_latitudes, h_elevation)
-    mask = np.isfinite(h_nd) # mask to only plot h where no terrain
+    ds['H_color'] = xr.where(ds['H'] > 1, 'red', 'green') # H > 1 blocked, H <=1 flow around
+    ds['H_color'] = xr.where(np.isnan(ds['H']), 'black', ds['H_color'])  # filter NaNs
+    ds['H_color'] = xr.where(ds['perpendicular_wind_speed'] == 0, 'blue', ds['H_color']) # unaffected flow
 
-    # categorize h
-    blocked = h_nd > 1
-    flow_over = h_nd <= 1
+def select_data(ds, lon, start_lat=45.5, end_lat=47.8):
+    """
+    Select wanted area for a vertical cross section 
+    from the dataset.
 
-    # create plot
-    fig, ax = plt.subplots(figsize=(8,5))
+    Parameters
+    ----------
+    ds: dataset
+        dataset containing all variables
+    lon: float 
+        longitude of the N-S oriented crosssection
+    start_lat: float
+        start latitude of the vertical crosssection
+    end_lat: float
+        end latitude of the vertical crosssection
+
+    Returns
+    -------
+    ds_crosssec: dataset
+        dataset containing all variables along the given longitude
+    """ 
+    
+    ds_crosssec = ds.sel(longitude=lon, method='nearest').sel(valid_time='2025-09-02T12:00:00') 
+    ds_crosssec = ds_crosssec.sel(latitude=slice(end_lat, start_lat))
+
+    return ds_crosssec
+
+def apply_terrain_mask(ds_crosssec):
+    """
+    Apply a terrain mask to H, 
+    so gridpoints beneath the terrain are not plotted.
+
+    Parameters
+    ----------
+    ds_crosssec: dataset
+        dataset containing all variables along the given longitude
+
+    Returns
+    -------
+    H_masked: dataarray
+        dataarray of H with gridpoints inside the terrain are NaNs
+    H_color_masked: dataarray
+        dataarray of H_color with gridpoints inside the terrain are NaNs
+    """
+    
+    p = ds_crosssec.pressure_level
+    lat = ds_crosssec.latitude
+    
+    p2d, _ = xr.broadcast(p, lat)
+    terrain_p2d, _ = xr.broadcast(terrain_p, p)
+    
+    H_masked = ds_crosssec['H'].where(p2d < terrain_p2d)
+    H_color_masked = ds_crosssec['H_color'].where(p2d < terrain_p2d)
+
+    return H_masked, H_color_masked
+
+def vertical_crosssection(terrain_p, H_masked, H_color_masked):
+    """
+    Create a vertical crosssection of H including the terrain. 
+    H is colorcoded for the different flow possibilites.
+
+    Parameters
+    ----------
+    ds_crosssec: dataset
+        dataset containing all variables along the given longitude
+
+    Returns
+    -------
+    H_masked: dataarray
+        dataarray of H with gridpoints inside the terrain are NaNs
+    H_color_masked: dataarray
+        dataarray of H_color with gridpoints inside the terrain are NaNs
+    """
+    
+    # create color map
+    color_map = {
+        'red': 'red',
+        'green': 'green',
+        'blue': 'blue',
+        'black': 'black'
+    }
+
+    mapper = np.vectorize(lambda x: color_map.get(x, 'lightgrey')) 
+    colors = xr.apply_ufunc(mapper, H_color_masked.fillna('lightgrey'), 
+                            dask='allowed' )
+
+    # meshgrid
+    lat, p = np.meshgrid(H_masked.latitude, H_masked.pressure_level)
+
+    # create figure
+    fig, ax = plt.subplots(figsize=(12, 6))
+
     # plot terrain
-    ax.plot(latitudes, elevation, color='black')
-    ax.fill_between(latitudes, elevation, color='lightgrey')
-    # plot h
-    ax.scatter(LAT[mask & blocked], Z[mask & blocked], color='red', label='blocked/flow around')
-    ax.scatter(LAT[mask & flow_over], Z[mask & flow_over], color='green', label='flow over')
-    
-    # titles and labels
+    ax.plot(terrain_p.latitude, terrain_p, color='black')
+    ax.fill_between(terrain_p.latitude, terrain_p, y2=terrain_p.values.max(), color='lightgrey')
+    ax.invert_yaxis() # pressure decreases with height
+
+    # scatter plot H
+    ax.scatter(lat.ravel(), p.ravel(), c=colors.values.ravel(), s=10)
+
+    # add lables, title and grid
+    ax.set_xlabel('latitude')
+    ax.set_ylabel('pressure [hpa]')
     ax.set_title('Non-dimensional mountain height')
-    ax.set_ylabel('elevation [m]')
-    ax.set_xlabel('latitude [m]')
-    ax.legend(loc='lower right')
+    ax.grid(alpha=0.4)
 
-    # save plot
-    save_fig()
-    plt.show()
+    # add legend
+    legend_elements = [
+    Patch(facecolor='red',   label='blocked / flow around'),
+    Patch(facecolor='green', label='flow over'),
+    Patch(facecolor='blue',  label='unaffected flow'),
+    ]
 
+    ax.legend(handles=legend_elements, loc='lower right')
 
-
-
-# main block
-if __name__ == "__main__":
-    # open terrain data
-    ds_terrain = xr.open_dataset('/media/afriesinger/Volume/Projekte/Gleitschirmfliegen/Studium/Programming/SciProFinal/era5vis-main/era5vis/terrain_cache/terrain_aspect_1km.nc')
-    # open h_nd data
-    #ds_h = xr.open_dataset('hnd_mockup_data.nc') 
-    ds_h = xr.open_dataset('/media/afriesinger/Volume/Projekte/Gleitschirmfliegen/Studium/Programming/SciProFinal/era5vis-main/era5vis/data/era5_test_with_NH.nc') 
-
-
-    # get lon,lat from arg
-    lon = sys.argv[1]
-    start_lat = sys.argv[2]
-    end_lat = sys.argv[3]
-
-    # select data
-    elevation, latitudes = select_terrain_data(lon, start_lat, end_lat)
-    h, h_latitudes, h_elevation = select_h_data(lon, start_lat, end_lat)
-
-    # plot vertical crosssection
-    create_vertical_crosssec(elevation, latitudes, h, h_elevation, h_latitudes)
+    return fig

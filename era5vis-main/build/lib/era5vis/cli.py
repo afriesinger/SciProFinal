@@ -149,8 +149,6 @@ def terrain(args):
     args: list
         output of sys.argv[1:]
     """
-    import argparse
-    from era5vis import terrain as terrain_module
     
     parser = argparse.ArgumentParser(
         prog='era5vis_terrain',
@@ -229,7 +227,7 @@ def terrain(args):
             
             # Download the file
             import urllib.request
-            url = 'https://cloud.sdsc.edu/v1/AUTH_osu/Raster/SRTM_GL30/SRTM_GL30_Ellip/SRTM_GL30_Ellip_srtm/SRTM_GL30_Ellip_srtm_01_N45_60_W10_00_01_N48_00_W10_00_02_N45_60_W010_00.tar.gz'
+            url = 'https://fileshare.uibk.ac.at/f/872b6e028ef74f6caf58/?dl=1'
             output_file = 'srtm_alps_30m.tif'
             
             try:
@@ -281,6 +279,10 @@ def terrain(args):
         print(f'Error processing terrain: {e}')
         sys.exit(1)
 
+## TODO ADD here verticalH()
+## The main logic!
+
+
 
 def era5vis_modellevel():
     """Entry point for the era5vis_modellevel application script"""
@@ -293,3 +295,7 @@ def era5vis_download():
 def era5vis_terrain():
     """Entry point for the era5vis_terrain application script"""
     terrain(sys.argv[1:])
+
+
+## TODO ADD HERE era5vis_verticalH 
+## The Main Function to use it all together

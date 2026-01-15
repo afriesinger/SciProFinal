@@ -1,5 +1,16 @@
 """Functions interacting with the ERA5 dataset."""
 
+"""
+This module provides functions for:
+- Validating geographic bounds for the Alpine region.
+- Authenticating and downloading pressure-level data from the CDS API.
+- Checking data availability within local NetCDF datasets.
+- Extracting horizontal cross-sections of atmospheric parameters.
+
+Author: Lawrence Ansu Mensah
+Date: 2026-01-14
+"""
+
 import os
 import sys
 import cdsapi
@@ -122,12 +133,12 @@ def load_era5_data(output_filename, start_date, area, end_date=None):
 
     Returns
     -------
-    None
-        Downloads the data directly to the specified `output_filename`."""
+    xarray.Dataset
+       The downloaded ERA5 data loaded into an xarray object."""
         
     if os.path.exists(output_filename):
         print(f"File '{output_filename}' exists. Skipping.")
-        return
+        return xr.open_dataset(output_filename)
 
     validate_inputs(area)
     
@@ -169,6 +180,8 @@ def load_era5_data(output_filename, start_date, area, end_date=None):
             'area': area,
         },
         output_filename)
+
+        return xr.open_dataset(output_filename)
 
 def horiz_cross_section(param, lvl, time):
     """Extract a horizontal cross section from the ERA5 data.

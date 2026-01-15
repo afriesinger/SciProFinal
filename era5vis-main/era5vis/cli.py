@@ -279,7 +279,7 @@ def terrain(args):
         print(f'Error processing terrain: {e}')
         sys.exit(1)
 
-## ADD here verticalH()
+## TODO ADD here verticalH()
 ## The main logic!
 
 
@@ -297,5 +297,5 @@ def era5vis_terrain():
     terrain(sys.argv[1:])
 
 
-## ADD HERE era5vis_verticalH 
+## TODO ADD HERE era5vis_verticalH 
 ## The Main Function to use it all together
