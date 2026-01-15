@@ -19,6 +19,7 @@ era5vis.egg-info/entry_points.txt
 era5vis.egg-info/requires.txt
 era5vis.egg-info/top_level.txt
 era5vis/data/template.html
+era5vis/data/terrain_aspect_1km.nc
 era5vis/tests/__init__.py
 era5vis/tests/conftest.py
 era5vis/tests/test_cli.py
