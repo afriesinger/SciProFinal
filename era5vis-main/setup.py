@@ -187,7 +187,7 @@ setup(
 
     # If there are data files included in your packages that need to be
     # installed, specify them here.
-    package_data={'era5vis': ['data/template.html'],
+    package_data={'era5vis': ['data/template.html', 'data/*.nc'],
     },
 
     # Although 'package_data' is the preferred approach, in some case you may
