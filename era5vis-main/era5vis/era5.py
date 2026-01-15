@@ -7,7 +7,7 @@ This module provides functions for:
 - Checking data availability within local NetCDF datasets.
 - Extracting horizontal cross-sections of atmospheric parameters.
 
-Author: Lawrence Ansu Mensah
+Author: Lawrence Ansu Mensah, Andreas Friesinger where stated
 Date: 2026-01-14
 """
 
@@ -15,6 +15,7 @@ import os
 import sys
 import cdsapi
 import datetime
+import numpy as np
 import xarray as xr
 from era5vis import cfg
 
@@ -181,7 +182,7 @@ def load_era5_data(output_filename, start_date, area, end_date=None):
         },
         output_filename)
 
-        return xr.open_dataset(output_filename)
+    return xr.open_dataset(output_filename)
 
 def horiz_cross_section(param, lvl, time):
     """Extract a horizontal cross section from the ERA5 data.
@@ -224,3 +225,39 @@ if __name__ == "__main__":
             load_era5_data(output_filename , date, coords)
         except Exception as e:
             print(f"\nERROR: {e}")
+
+def compress_era(dataset):
+   
+    """
+    Compress ERA5 dataset using numpy dtypes.
+
+    Parameters
+    ----------
+    dataset: xarray.Dataset
+        ERA5 dataset to be compressed
+
+    Returns
+    -------
+    dataset: xarray.Dataset
+        Compressed ERA5 dataset
+    
+    Author: Andreas Friesinger
+    """
+    dtype_map = {
+        # coordinates / dimensions
+        "latitude": np.float32,
+        "longitude": np.float32,
+        "pressure_level": np.int16,
+
+        # data variables
+        "t": np.float16,
+        "u": np.float16,
+        "v": np.float16,
+        "z": np.uint16,
+        "gph": np.uint16, 
+    }
+
+    for var, dtype in dtype_map.items():
+        if var in dataset:
+            dataset[var] = dataset[var].astype(dtype)
+    return dataset
