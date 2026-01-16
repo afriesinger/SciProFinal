@@ -1,6 +1,6 @@
 """ contains command line tools of ERA5vis
 
-Manuela Lehner
+Authors: Manuela Lehner, Andreas Friesinger, Anna Buchhauser, Lawrence Mensah
 November 2025
 """
 
@@ -106,6 +106,8 @@ def download(args):
     args: list
         output of sys.args[1:]
     
+    Author: Lawrence Mensah
+    
     """
 
     if '--output' in args: 
@@ -159,6 +161,8 @@ def terrain(args):
     ----------
     args: list
         output of sys.argv[1:]
+
+    Author: Andreas Friesinger
     """
     
     parser = argparse.ArgumentParser(
@@ -341,6 +345,14 @@ def plot_vertical_crosssection(args):
               'Type "era5vis_visualization --help" for usage information.')
 
 ## The main logic!
+## Pseudo Code: 
+## Download ERA Data | Module era
+## Add terrain Data to era |  module terrain 
+## Compress Era Data | module era
+## Compute wind interaction with terrain |  module terrain
+## compute NH | module dynamics
+## visualize | module visualization
+## Show Plot without blocking CLI
 
 
 
