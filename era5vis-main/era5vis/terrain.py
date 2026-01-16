@@ -321,7 +321,7 @@ def compute_terrain_intersection(
     terrain_on_era5_values = interp_func(points).reshape(lat_grid.shape)
     
     # Convert back to int32 to match terrain data type
-    terrain_on_era5_values = np.round(np.nan_to_num(terrain_on_era5_values, nan=0)).astype(np.int32)
+    #terrain_on_era5_values = np.round(np.nan_to_num(terrain_on_era5_values, nan=0)).astype(np.int32)
     
     terrain_on_era5 = xr.DataArray(
         terrain_on_era5_values,
@@ -340,7 +340,7 @@ def compute_terrain_intersection(
     # Create output dataset
     result = era5_data.copy()
     result['terrain'] = terrain_mask
-    result['terrain_elevation'] = terrain_on_era5.astype(np.int32)
+    result['terrain_elevation'] = terrain_on_era5#.astype(np.int32)
     result['terrain_elevation'].attrs = {
         'units': 'm',
         'long_name': 'SRTM terrain elevation',
