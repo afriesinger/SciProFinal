@@ -255,6 +255,9 @@ def compress_era(dataset):
         "v": np.float16,
         "z": np.uint16,
         "gph": np.uint16, 
+        'elevation': np.int16,
+        'aspect_deg': np.int16,
+        'slope': np.int16
     }
 
     for var, dtype in dtype_map.items():
