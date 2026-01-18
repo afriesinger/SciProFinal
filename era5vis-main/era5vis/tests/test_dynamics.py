@@ -162,6 +162,8 @@ def test_nondim_mtn_height_negative_h():
 def test_compute_N_H_basic():
     """Test if H and N are added to dataset and if shape is correct."""
 
+    pressure = [1000, 900, 800]
+
     data = xr.Dataset(
         data_vars={
             'theta': (('pressure_level',), [300, 305, 310]),
@@ -169,7 +171,7 @@ def test_compute_N_H_basic():
             'perpendicular_wind_speed': (('pressure_level',), [10, 10, 10]),
             'downwind_terrain_height': ((), 1000),
         },
-        coords={'pressure_level': [1000, 900, 800]},
+        coords={'pressure_level': pressure},
     )
 
     result = dynamics.compute_N_H(data)
