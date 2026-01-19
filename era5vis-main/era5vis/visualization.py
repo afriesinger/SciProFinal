@@ -167,8 +167,8 @@ def vertical_crosssection(ds_crosssec, terrain_p, timestamp, lon, filepath=None)
     stepsize = 8
     ax.barbs(lat[::, ::stepsize], 
              p[::, ::stepsize], 
-             U.values[::, ::stepsize], 
-             V.values[::, ::stepsize],
+             V.values[::, ::stepsize], 
+             U.values[::, ::stepsize],
              length=5, barbcolor='darkgrey')
 
     # plot terrain
@@ -219,3 +219,4 @@ def create_plot(ds, lon):
     
     # plot vertical crosssection
     vertical_crosssection(ds_crosssec, terrain_p, timestamp, lon)
+
