@@ -13,13 +13,16 @@ import dynamics
 
 # tests for geopotential_height()
 def test_geopotential_height_single_value():
+    """Test the conversion from geopotential to height for a single point"""
+    
     z = np.array(9.81)
     result = dynamics.geopotential_height(z)
     assert result == 1
     
-
+ # test with a numpy array
 def test_geopotential_height_array():
-    # Test with a numpy array
+   """Test the conversion across an entire data array"""
+    
     z = np.array([0, 9810, 19620])
     expected = np.array([0, 1000, 2000], dtype=np.uint16)
     result = dynamics.geopotential_height(z)
