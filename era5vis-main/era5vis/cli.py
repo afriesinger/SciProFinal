@@ -11,6 +11,7 @@ import era5vis
 import argparse
 from era5vis import terrain as terrain_module
 from era5vis import era5
+from era5vis import visualization
 
 HELP_DOWNLOAD = """era5vis_download: Download ERA5 data for the Alpine region.
 
@@ -20,6 +21,16 @@ Usage:
     -e, --end [YYYY-MM-DD-HH]  : end date and hour, optional (for time series)
     -a, --area [N W S E]       : North West South East coordinates (spaces only), mandatory
                                  (Limits: N<=48, S>=45, W>=6, E<=16)
+"""
+
+HELP_VISUALIZATION = """era5vis_visualization: Plot a vertical cross-section
+                        of H from a provided dataset.
+
+Usage:
+    -i, --input [FILEPATH]     : filepath for input dataset, mandatory
+    -l, --lon [LONGITUDE]      : longitude of the cross-section, mandatory
+    -s, --start_lat [START_LAT]: southern border of cross-section, optional
+    -e, --end_lat [END_LAT]    : northern border of cross-section, optional
 """
 
 HELP = """era5vis_modellevel: Visualization of ERA5 at a given model level.
@@ -279,7 +290,56 @@ def terrain(args):
         print(f'Error processing terrain: {e}')
         sys.exit(1)
 
-## TODO ADD here verticalH()
+def plot_vertical_crosssection(args):
+    """The actual era5vis_visualization command line tool.
+
+    Parameters
+    ----------
+    args: list
+        output of sys.args[1:]
+    """
+
+    if '--input' in args: 
+        args[args.index('--input')] = '-i'
+    if '--lon' in args: 
+        args[args.index('--lon')] = '-l'
+    if '--start_lat' in args: 
+        args[args.index('--start_lat')] = '-s'
+    if '--end_lat' in args: 
+        args[args.index('--end_lat')] = '-e'
+        
+    # work with command line arguements
+    if len(args) == 0 or args[0] in ['-h', '--help']:
+        print(HELP_VISUALIZATION)
+        return
+
+    # input data file an lon are necessary, start and end lat not
+    elif ('-i' in args) and ('-l' in args):
+        input_filepath = args[args.index('-i') + 1]
+        lon = float(args[args.index('-l') + 1])
+        start_lat = 45.5
+        end_lat = 47.8
+        if ('-s' in args):
+            start_lat = float(args[args.index('-s') + 1])
+        if ('-e' in args):
+            end_lat = float(args[args.index('-e') + 1])
+        if not (45 <= start_lat <= 48 and 45 <= end_lat <= 48):
+            raise ValueError('Start and end latitude must be between 45 and 48')
+        if start_lat >= end_lat:
+            raise ValueError('Start latitude must be smaller than end latitude')
+
+        try:
+            input_ds = xr.open_dataset(input_filepath)
+            visualization.plot_vertical_crosssection(
+                input_ds, lon, start_lat=start_lat, end_lat=end_lat
+            )
+        except Exception as e:
+            print(f'Error: {e}')
+
+    else:
+        print('era5vis_visualization: command not understood or mandatory arguments missing.'
+              'Type "era5vis_visualization --help" for usage information.')
+
 ## The main logic!
 
 
@@ -295,7 +355,10 @@ def era5vis_download():
 def era5vis_terrain():
     """Entry point for the era5vis_terrain application script"""
     terrain(sys.argv[1:])
+    
+def era5vis_visualization():
+    """Entry point for the era5vis_visualization application script"""
+    plot_vertical_crosssection(sys.argv[1:])
 
-
-## TODO ADD HERE era5vis_verticalH 
+ 
 ## The Main Function to use it all together
