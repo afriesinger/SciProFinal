@@ -66,7 +66,7 @@ def add_color_code(ds):
     ds['H_color'] = xr.where(np.isnan(ds['H']), 'white', ds['H_color'])  # filter NaNs
     ds['H_color'] = xr.where(ds['perpendicular_wind_speed'] == 0, 'blue', ds['H_color']) # unaffected flow
 
-def select_data(ds, lon, start_lat=45.5, end_lat=47.8):
+def select_data(ds, lon, start_lat, end_lat):
     """
     Select wanted area for a vertical cross section 
     from the dataset.
@@ -198,7 +198,7 @@ def vertical_crosssection(ds_crosssec, terrain_p, timestamp, lon, filepath=None)
     return fig 
 
 # main function
-def create_plot(ds, lon):
+def create_plot(ds, lon, start_lat=45.5, end_lat=47.8):
     """Create vertical cross-section of H
 
     Parameters
@@ -219,4 +219,5 @@ def create_plot(ds, lon):
     
     # plot vertical crosssection
     vertical_crosssection(ds_crosssec, terrain_p, timestamp, lon)
+
 
