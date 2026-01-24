@@ -198,7 +198,7 @@ def vertical_crosssection(ds_crosssec, terrain_p, timestamp, lon, filepath=None)
     return fig 
 
 # main function
-def create_plot(ds, lon, start_lat=45.5, end_lat=47.8):
+def create_plot(ds, lon, start_lat=45.5, end_lat=47.8, filepath=None):
     """Create vertical cross-section of H
 
     Parameters
@@ -213,11 +213,11 @@ def create_plot(ds, lon, start_lat=45.5, end_lat=47.8):
     add_color_code(ds)
     
     # select data for cross-section
-    ds_crosssec, timestamp = select_data(ds, 11.2)
+    ds_crosssec, timestamp = select_data(ds, lon, start_lat=start_lat, end_lat=end_lat)
     terrain_p = height_to_pressure(ds_crosssec['terrain_elevation'])
     apply_terrain_mask(ds_crosssec, terrain_p)
     
     # plot vertical crosssection
-    vertical_crosssection(ds_crosssec, terrain_p, timestamp, lon)
+    vertical_crosssection(ds_crosssec, terrain_p, timestamp, lon, filepath=filepath)
 
 

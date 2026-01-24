@@ -9,10 +9,14 @@ import webbrowser
 import datetime
 import era5vis
 import argparse
+import xarray as xr
+import numpy as np
+import tempfile
 from era5vis import terrain as terrain_module
 from era5vis import era5
 from era5vis import visualization
-
+from era5vis import wind
+from era5vis import dynamics
 HELP_DOWNLOAD = """era5vis_download: Download ERA5 data for the Alpine region.
 
 Usage:
@@ -344,15 +348,133 @@ def plot_vertical_crosssection(args):
         print('era5vis_visualization: command not understood or mandatory arguments missing.'
               'Type "era5vis_visualization --help" for usage information.')
 
+
 ## The main logic!
-## Pseudo Code: 
-## Download ERA Data | Module era
-## Add terrain Data to era |  module terrain 
-## Compress Era Data | module era
-## Compute wind interaction with terrain |  module terrain
-## compute NH | module dynamics
-## visualize | module visualization
-## Show Plot without blocking CLI
+def analyzeH(args):
+    """The actual era5vis_analyzeH command line tool.
+
+    Parameters
+    ----------
+    args: list
+        output of sys.argv[1:]
+    
+    Author: Andreas Friesinger
+    """
+    
+    parser = argparse.ArgumentParser(
+        prog='era5vis_analyzeH',
+        description='Analyze geopotential height with terrain interaction and wind effects'
+    )
+    
+    parser.add_argument(
+        '-lon', '--longitude',
+        type=float,
+        required=True,
+        metavar='LONGITUDE',
+        help='Longitude of the crossection trough the alps (mandatory)'
+    )
+    
+    parser.add_argument(
+        '-dt', '--datetime',
+        type=str,
+        required=True,
+        metavar='YYYY-MM-DD-HH',
+        help='Datetime for analysis in format YYYY-MM-DD-HH (mandatory)'
+    )
+    
+    parser.add_argument(
+        '-plot_filename',
+        type=str,
+        metavar='FILENAME',
+        help='Filename for saving the plot output (optional)'
+    )
+    
+    parser.add_argument(
+        '-ds_filename',
+        type=str,
+        metavar='FILENAME',
+        help='Filename for saving the processed dataset (optional)'
+    )
+    
+    parser.add_argument(
+        '-v', '--version',
+        action='version',
+        version=f'era5vis_analyzeH {era5vis.__version__}'
+    )
+    
+    np.seterr(all='ignore') #suppress warnings for invalid calculations
+    try:
+        parsed_args = parser.parse_args(args)
+        
+        lon = parsed_args.longitude
+        datetime_str = parsed_args.datetime
+        plot_filename = parsed_args.plot_filename
+        ds_filename = parsed_args.ds_filename
+        
+        
+        # Parse datetime
+        try:
+            date_time = datetime.datetime.strptime(datetime_str, "%Y-%m-%d-%H")
+        except ValueError:
+            print(f'Error: Invalid datetime format. Expected YYYY-MM-DD-HH, got {datetime_str}')
+            sys.exit(1)
+        
+        # Load terrain dataset
+        terrain_ds = terrain_module.load_terrain_aspect_dataset()
+        lon_bounds = {'min': terrain_ds['longitude'].min().item(), 'max': terrain_ds['longitude'].max().item()}
+        lat_bounds = {'min': terrain_ds['latitude'].min().item(), 'max': terrain_ds['latitude'].max().item()}
+        
+        # Validate longitude bounds
+        if lon < lon_bounds['min'] or lon > lon_bounds['max']:
+            raise ValueError(f"Longitude {lon} out of terrain bounds [{lon_bounds['min']}, {lon_bounds['max']}]")
+        
+        # Validate date bounds
+        era_time_bounds = {'earliest': datetime.datetime(1940, 1, 1, 0),
+                          'latest': datetime.datetime.now() - datetime.timedelta(days=3)}
+        if date_time < era_time_bounds['earliest'] or date_time > era_time_bounds['latest']:
+            raise ValueError(f"Date {date_time} out of ERA5 data bounds [{era_time_bounds['earliest']}, {era_time_bounds['latest']}] (3 days ago)")
+        
+        # Define area around longitude
+        area = [lat_bounds['max'], lon - 0.5, lat_bounds['min'], lon + 0.5]
+        if ds_filename == None: 
+            file_dir = tempfile.NamedTemporaryFile(suffix='.nc', delete=True).name
+        else:
+            file_dir = ds_filename
+        
+        # Download ERA5 data
+        era_ds = era5.load_era5_data(file_dir, date_time, area)
+        era_ds['gph'] = dynamics.geopotential_height(era_ds['z'])
+        
+        # Add terrain data to ERA dataset
+        ds = terrain_module.interpolate_to_grid(era_ds, terrain_ds)
+        #era5.compress_era(ds)
+        ds = terrain_module.compute_terrain_intersection(ds, terrain_ds)
+        ds['theta'] = dynamics.potential_temperature(ds['t'], ds['pressure_level']) #after interpolation
+        
+        # Compute wind interaction with terrain
+        #era5.compress_era(ds)
+        ds = wind.compute_wind_terrain_interaction(ds, terrain_ds, range_km=3.0)
+        
+        # Compute Brunt-Väisälä frequency
+        ds = dynamics.compute_N_H(ds)
+        
+        # Save dataset if filename provided
+        if ds_filename:
+            ds.to_netcdf(ds_filename)
+            print(f'Dataset saved to: {ds_filename}')
+        
+        # Visualize vertical cross-section
+        visualization.create_plot(ds, lon, start_lat=lat_bounds['min'], end_lat=lat_bounds['max'], 
+                                filepath=plot_filename)
+        
+    except SystemExit:
+        raise
+    except ValueError as e:
+        print(f'Error: {e}')
+        sys.exit(1)
+    except Exception as e:
+        print(f'An unexpected error occurred: {e}')
+        sys.exit(1)
 
 
 
@@ -372,5 +494,8 @@ def era5vis_visualization():
     """Entry point for the era5vis_visualization application script"""
     plot_vertical_crosssection(sys.argv[1:])
 
- 
-## The Main Function to use it all together
+def era5vis_analyzeH():
+    """Entry point for the era5vis_analyzeH application script"""
+    analyzeH(sys.argv[1:])
+
+

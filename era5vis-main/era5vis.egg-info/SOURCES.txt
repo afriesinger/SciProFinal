@@ -28,4 +28,5 @@ era5vis/tests/test_dynamics.py
 era5vis/tests/test_era5.py
 era5vis/tests/test_graphics.py
 era5vis/tests/test_terrain.py
+era5vis/tests/test_visualization.py
 era5vis/tests/test_wind.py

@@ -118,7 +118,7 @@ def calc_wind(u, v):
     """
 
     wind_dir = (np.degrees(np.arctan2(-u, -v)) + 360) % 360
-    wind_dir = wind_dir.astype(np.uint16)
+    wind_dir = wind_dir#.astype(np.uint16)
     wind_speed = np.round(np.sqrt(u**2 + v**2), 2)  
     return wind_dir, wind_speed
 
@@ -354,7 +354,7 @@ def compute_wind_terrain_interaction(
 
     perpendicular_winds = xr.full_like(wind_speed, np.nan, dtype=float)
     
-    # Vectorized perpendicular wind calculation
+    # Vectorized perpendicular wind calculation - fastest approach
     valid_terrain = ~np.isnan(downwind_terrain_heights.values)
     
     for t_idx in range(nt):

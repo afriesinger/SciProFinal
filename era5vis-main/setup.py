@@ -207,7 +207,9 @@ setup(
         'console_scripts': [
             'era5vis_modellevel=era5vis.cli:era5vis_modellevel',
             'era5vis_download=era5vis.cli:era5vis_download',
-            'era5vis_terrain=era5vis.cli:era5vis_terrain'
+            'era5vis_terrain=era5vis.cli:era5vis_terrain',
+            'era5vis_visualization=era5vis.cli:era5vis_visualization',
+            'era5vis_analyzeH=era5vis.cli:era5vis_analyzeH',
         ],
     },
 

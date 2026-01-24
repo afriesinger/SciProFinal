@@ -13,7 +13,7 @@ def geopotential_height(z):
     gph : array-like
         Geopotential height in meters (m) as int32
     """
-    gph = (z / 9.81).astype(np.uint16)
+    gph = (z / 9.81)#.astype(np.uint16)
     return gph
 
 
@@ -44,7 +44,7 @@ def potential_temperature(
     cp = 1004.0 # J/(kg·K)
 
     theta = T * (p0 / p)**(R / cp)
-    theta = theta.astype(np.float16)
+    theta = theta#.astype(np.float16)
     
     return theta
 
@@ -80,6 +80,8 @@ def brunt_vaeisaelae_freq(
     """
     g= 9.81
     dtheta = theta_up-theta_down
+    #if (np.isfinite(dtheta) == False).any():
+    #    raise ValueError('theta_up and theta_down need to be finite values: theta_up: {}, theta_down: {}'.format(theta_up, theta_down)) 
     dz = z_up - z_down
     if (dz < 0).any():
         raise ValueError('z_down need to be smaller thatn z_up')
@@ -131,7 +133,7 @@ def nondim_mtn_height(
 
 
     H= (N * h) / U
-    H = H.astype(np.float32)
+    H = H#.astype(np.float32)
 
     return H
 

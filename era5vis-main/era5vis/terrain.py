@@ -349,6 +349,36 @@ def compute_terrain_intersection(
        
     return result
 
+def crop_terrain(target_ds, terrain_dataset):   
+    """
+    Crop a terrain dataset to a target dataset's bounds.
+
+    Parameters
+    ----------
+    target_ds : xr.Dataset
+        Target dataset with variables on (time, pressure_level, latitude, longitude)
+    terrain_dataset : xr.Dataset
+        Terrain dataset with variables on (latitude, longitude)
+
+    Returns
+    -------
+    xr.Dataset
+        Cropped terrain dataset on target grid with same variables and coordinates
+    """
+    target_lat_min = target_ds.latitude.min().item()
+    target_lat_max = target_ds.latitude.max().item()
+    target_lon_min = target_ds.longitude.min().item()
+    target_lon_max = target_ds.longitude.max().item()
+    
+    terrain_cropped = terrain_dataset.sel(
+        latitude=slice(target_lat_max, target_lat_min),
+        longitude=slice(target_lon_min, target_lon_max)
+    )
+    
+    return terrain_cropped
+
+
+
 def interpolate_to_grid(source_dataset, target_dataset):
     """
     Interpolate ERA5 data onto a target grid using xarray's interpolation methods.

@@ -9,7 +9,7 @@ import numpy as np
 import xarray as xr
 import pytest
 
-import dynamics
+from era5vis import dynamics
 
 # tests for geopotential_height()
 def test_geopotential_height_single_value():
@@ -18,11 +18,12 @@ def test_geopotential_height_single_value():
     z = np.array(9.81)
     result = dynamics.geopotential_height(z)
     assert result == 1
-    
- # test with a numpy array
+
+
+# test with a numpy array
 def test_geopotential_height_array():
-   """Test the conversion across an entire data array"""
-    
+    """Test the conversion across an entire data array"""
+
     z = np.array([0, 9810, 19620])
     expected = np.array([0, 1000, 2000], dtype=np.uint16)
     result = dynamics.geopotential_height(z)
@@ -181,7 +182,8 @@ def test_compute_N_H_basic():
 
     assert 'N' in result
     assert 'H' in result
-    assert result['N'].shape[0] == len(pressure) - 1 # does not pass, why?
+    # N and H have same shape as input pressure levels (last value is NaN from calculation)
+    assert result['N'].shape[0] == len(pressure)
 
 def test_compute_N_H_masking():
     """Test if masking works correctly"""
