@@ -9,6 +9,10 @@ example packages [scispack](https://github.com/fmaussion/scispack) and
 [climvis](https://github.com/fmaussion/climvis) written by
 [Fabien Maussion](https://fabienmaussion.info).
 
+## What is it used for?
+
+The package helps you analyze the concept of "non-dimensional-mountain-height" in real topographic scenarios using ERA5 data as input.
+
 ## HowTo
 
 Make sure you have all dependencies installed. These are:
@@ -23,23 +27,30 @@ type:
 
     $ pip install -e .
 
-## Command line interface
+## Command line interfaces
 
-``setup.py`` defines an "entry point" for a script to be used as a
-command line program. Currently, the only command installed is ``era5vis_modellevel``.
+The Package provides you serveral comand line interfaces. Choose it depending on your needs. 
+After installation with python setup.py install the interfaces become avialable on your comandline.
 
-After installation, just type
+The terrain interface era5vis_terrain
+The package provides a precomputed terrain file for the ALPs. If you like to go for another area or use a different gird spacing than the provided 1km you can create a terrain_dataset by your own out of an terrain TIF file. Use era5vis_terrain -help to explore your options.
 
-    $ era5vis_modellevel --help
+The download interface: era5vis_download
+With this interface you can retrieve datasets from the CDS-datastore. Make sure you have the credentials installed. Furhter information with:
+era5vis_download -h
 
-to see what the tool can do.
+The visualisation tool: era5vis_visualization
+If you already have a propper dataset with non dimensional mountain height calculated you can use this tool for getting it visualized. 
+
+The Do-It-All-Togehter Interface era5vis_analyzeH
+Just drop a longitude and a date and you get a visualization of your case. 
+example: era5vis_analyzeH -lon 12 -dt 2025-01-01-12
 
 ## Testing
 
-I recommend to use [pytest](https://docs.pytest.org) for testing. To test
-the package, run
-
-    $ pytest .
+Run 
+pytest --cov=era5vis --cov-report=term-missing
+coverage html
 
 in the package's root directory.
 

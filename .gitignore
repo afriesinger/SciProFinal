@@ -430,3 +430,6 @@ era5vis-main/era5vis/H_parameter_1000-700hPa_with_blue_overlay.png
 era5vis-main/era5vis/data/era5_test_with_NH.nc
 era5vis-main/era5vis/data/era5_example_dataset.nc
 era5vis-main/build/
+era5vis-main/era5vis/terrain_dataset.nc
+era5vis-main/era5vis/test.png
+era5vis-main/htmlcov.zip
