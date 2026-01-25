@@ -123,9 +123,10 @@ class TestTerrainCLI:
         
         # Create a temporary file path
         test_file = str(tmp_path / "test.tif")
+        output_file = str(tmp_path / "terrain_dataset.nc")
         
-        # Test with quiet mode
-        terrain(['-recreate', test_file, '-q'])
+        # Test with quiet mode and specify output path
+        terrain(['-recreate', test_file, '-o', output_file, '-q'])
         
         # Verify load_terrain_from_tif was called with correct path
         mock_load.assert_called_once_with(test_file)
@@ -165,9 +166,10 @@ class TestTerrainCLI:
         mock_aspect.return_value = mock_dataset
         
         test_file = str(tmp_path / "test.tif")
+        output_file = str(tmp_path / "terrain_dataset.nc")
         
         # Test with 2km resolution (should trigger downsampling)
-        terrain(['-recreate', test_file, '-res', '2.0', '-q'])
+        terrain(['-recreate', test_file, '-res', '2.0', '-o', output_file, '-q'])
         
         # Verify downsample was called
         mock_downsample.assert_called_once()
@@ -256,9 +258,10 @@ class TestTerrainCLI:
             mock_aspect.return_value = mock_dataset
             
             test_file = str(tmp_path / "test.tif")
+            output_file = str(tmp_path / "terrain_dataset.nc")
             
             # Test with quiet mode
-            terrain(['-recreate', test_file, '-q'])
+            terrain(['-recreate', test_file, '-o', output_file, '-q'])
             captured = capsys.readouterr()
             # Should have no output with quiet flag
             assert captured.out == ''
@@ -296,9 +299,10 @@ class TestTerrainCLI:
             mock_aspect.return_value = mock_dataset
             
             test_file = str(tmp_path / "test.tif")
+            output_file = str(tmp_path / "terrain_dataset.nc")
             
             # Test without quiet mode (verbose)
-            terrain(['-recreate', test_file])
+            terrain(['-recreate', test_file, '-o', output_file])
             captured = capsys.readouterr()
             # Should have output
             assert 'Loading terrain from:' in captured.out
