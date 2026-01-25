@@ -187,7 +187,7 @@ setup(
 
     # If there are data files included in your packages that need to be
     # installed, specify them here.
-    package_data={'era5vis': ['data/template.html', 'data/terrain_aspect_1km.nc'],
+    package_data={'era5vis': ['data/terrain_aspect_1km.nc'],
     },
 
     # Although 'package_data' is the preferred approach, in some case you may
@@ -205,7 +205,6 @@ setup(
     # executes the function `main` from this package when invoked:
     entry_points={  # Optional
         'console_scripts': [
-            'era5vis_modellevel=era5vis.cli:era5vis_modellevel',
             'era5vis_download=era5vis.cli:era5vis_download',
             'era5vis_terrain=era5vis.cli:era5vis_terrain',
             'era5vis_visualization=era5vis.cli:era5vis_visualization',

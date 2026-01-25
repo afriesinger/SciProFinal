@@ -3,4 +3,4 @@
 # string is synchronised with `setup.py`, but for our purposes this is OK
 __version__ = '0.0.1'
 
-from era5vis.core import write_html
+

@@ -9,8 +9,12 @@ Author: Andreas Friesinger
 Date: 2025-12-31
 """
 
+import warnings
 import numpy as np
 import xarray as xr
+
+# Suppress RuntimeWarning for float-to-int conversions with NaN values
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 
 # Constants
@@ -376,7 +380,7 @@ def compute_wind_terrain_interaction(
     result['wind_direction'] = wind_dir.astype(np.uint16)
     result['wind_direction'].attrs = {'units': 'degrees', 'long_name': 'Wind direction (from)'}
 
-    downwind_heights_filled = downwind_terrain_heights.fillna(0) #handle NaN in Uint16
+    downwind_heights_filled = downwind_terrain_heights.fillna(0)
     result['downwind_terrain_height'] = downwind_heights_filled.astype(np.uint16)
     result['downwind_terrain_height'].attrs = {
         'units': 'm',
