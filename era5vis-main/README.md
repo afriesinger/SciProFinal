@@ -16,11 +16,15 @@ The package helps you analyze the concept of "non-dimensional-mountain-height" i
 ## HowTo
 
 Make sure you have all dependencies installed. These are:
-- numpy
-- xarray
-- netcdf4
-- matplotlib
-- pytest
+    'numpy',
+    'xarray',
+    'matplotlib',
+    'netCDF4',
+    'cdsapi',
+    'rasterio',
+    'elevation',
+    'scipy',
+    'pandas',
 
 Download the package and install it in development mode. In the root directory
 type:

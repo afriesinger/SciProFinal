@@ -29,10 +29,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 import importlib
-# Always prefer setuptools over distutils
-from setuptools import setup, find_packages
 # To use a consistent encoding
 from codecs import open
+# Always prefer setuptools over distutils
+from setuptools import setup, find_packages
 from os import path
 
 
@@ -171,7 +171,16 @@ setup(
     #
     # For an analysis of "install_requires" vs pip's requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['cdsapi'],
+    install_requires=['numpy',
+                      'xarray',
+                      'matplotlib',
+                      'netCDF4',
+                      'cdsapi',
+                      'rasterio',
+                      'elevation',
+                      'scipy',
+                      'pandas',
+                      ],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). Users will be able to install these using the "extras"

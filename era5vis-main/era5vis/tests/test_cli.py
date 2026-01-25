@@ -1,8 +1,13 @@
 """ Test functions for cli """
 
+""" 
+Author: Andreas Friesinger
+Date: 2026-01-23
+"""
+
+from unittest.mock import patch, MagicMock
 import era5vis
 from era5vis.cli import terrain, analyzeH
-from unittest.mock import patch, MagicMock
 import pytest
 
 
@@ -42,7 +47,7 @@ class TestTerrainCLI:
     
     @patch('era5vis.terrain.load_terrain_from_tif')
     @patch('era5vis.terrain.compute_terrain_aspect_dataset')
-    def test_terrain_recreate_local_file(self, mock_aspect, mock_load, capsys, tmp_path):
+    def test_terrain_recreate_local_file(self, mock_aspect, mock_load, tmp_path):
         """Test terrain recreation from a local file"""
         import numpy as np
         import xarray as xr
@@ -79,7 +84,7 @@ class TestTerrainCLI:
     @patch('era5vis.terrain.load_terrain_from_tif')
     @patch('era5vis.terrain.downsample_terrain')
     @patch('era5vis.terrain.compute_terrain_aspect_dataset')
-    def test_terrain_recreate_with_resolution(self, mock_aspect, mock_downsample, mock_load, capsys, tmp_path):
+    def test_terrain_recreate_with_resolution(self, mock_aspect, mock_downsample, mock_load, tmp_path):
         """Test terrain recreation with custom resolution"""
         import numpy as np
         import xarray as xr
@@ -124,7 +129,7 @@ class TestTerrainCLI:
     @patch('urllib.request.urlretrieve')
     @patch('era5vis.terrain.load_terrain_from_tif')
     @patch('era5vis.terrain.compute_terrain_aspect_dataset')
-    def test_terrain_download_with_force(self, mock_aspect, mock_load, mock_download, capsys, tmp_path):
+    def test_terrain_download_with_force(self, mock_aspect, mock_load, mock_download):
         """Test terrain download with --force flag (no confirmation)"""
         import numpy as np
         import xarray as xr
@@ -159,7 +164,7 @@ class TestTerrainCLI:
     
     @patch('builtins.input', return_value='no')
     @patch('urllib.request.urlretrieve')
-    def test_terrain_download_user_declines(self, mock_download, mock_input, capsys):
+    def test_terrain_download_user_declines(self, mock_download, mock_input):
         """Test terrain download when user declines confirmation"""
         # Test with user declining the download
         terrain(['-d', '-q'])

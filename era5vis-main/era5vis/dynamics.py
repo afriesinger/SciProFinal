@@ -1,7 +1,21 @@
+"""Functions for atmospheric dynamics."""
+
+"""
+This module provides functions for calculating:
+- Geopotential height
+- Potential temperature        
+- Brunt-Väisälä frequency     
+- Non-dimensional mountain height
+
+Author:  Andreas Friesinger 
+Date: 2026-01-14
+"""
+
+
 
 import numpy as np
 
-def geopotential_height(z):
+def geopotential_height(z:float):
     """
     Convert geopotential height to geopotential height in meters.
 
@@ -100,10 +114,10 @@ def brunt_vaeisaelae_freq(
 
 
 def nondim_mtn_height(
-        N:float,  # Brunt-Väisälä-Frequency
-        h:int,    # height of the mountain to overcome
+        N:float,  
+        h:int,    
         U_up:float,
-        U_down:float): # perpendicular wind speed
+        U_down:float): 
     
     """
     Calculate the non-dimensional mountain height (H) which is the ratio between 
@@ -133,7 +147,6 @@ def nondim_mtn_height(
 
 
     H= (N * h) / U
-    H = H#.astype(np.float32)
 
     return H
 

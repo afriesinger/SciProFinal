@@ -13,10 +13,11 @@ from scipy.interpolate import RegularGridInterpolator
 import os
 import sys
 
+
 # Add parent directory to path to allow importing wind module directly
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
 import wind
+
 
 
 class TestCalcWind:
@@ -57,6 +58,7 @@ class TestCalcWind:
         
         # Direction is undefined, speed is zero
         assert np.isclose(wind_speed, 0.0)
+        assert 0 <= wind_dir < 360
     
     def test_wind_direction_range(self):
         """Test that wind direction is always in [0, 360)."""
@@ -241,7 +243,6 @@ class TestPerpendicularWindComponent:
         """Test edge case where rounding might affect the check."""
         # Use values that could theoretically produce negative or >wind_speed after rounding
         wind_dir = 0.0
-        wind_speed = 10.0
         
         # Test aspect angles that result in very small or very large cosines
         test_cases = [
@@ -255,190 +256,6 @@ class TestPerpendicularWindComponent:
             perp_wind = wind.perpendicular_wind_component(wind_dir, ws, slope_aspect)
             # Should never raise error and always be in valid range
             assert 0 <= perp_wind <= ws
-
-
-class TestGetDownwindPoints:
-    """Tests for _get_downwind_points function."""
-    
-    def test_output_arrays_length(self):
-        """Test that output arrays have correct length."""
-        downwind_lats, downwind_lons = wind._get_downwind_points(
-            46.0, 10.5, 0.0, range_km=10
-        )
-        
-        assert len(downwind_lats) == int(10*2)
-        assert len(downwind_lons) == int(10*2)
-    
-    def test_wind_from_north(self):
-        """Test downwind points with wind from north."""
-        era_lat = 46.0
-        era_lon = 10.5
-        wind_dir = 0.0  # From north → downwind is south
-        
-        downwind_lats, downwind_lons = wind._get_downwind_points(
-            era_lat, era_lon, wind_dir, range_km=10
-        )
-        
-        # Downwind should extend south from starting point  
-        # First point should be very close to era_lat
-        assert np.isclose(downwind_lats[0], era_lat, atol=0.01)
-        assert np.isclose(downwind_lons[0], era_lon, atol=0.1)
-    
-    def test_wind_from_east(self):
-        """Test downwind points with wind from east."""
-        era_lat = 46.0
-        era_lon = 10.5
-        wind_dir = np.pi / 2  # From east → downwind is west
-        
-        downwind_lats, downwind_lons = wind._get_downwind_points(
-            era_lat, era_lon, wind_dir, range_km=10
-        )
-        
-        # Downwind should be west (decreasing longitude)
-        assert downwind_lons[-1] < downwind_lons[0]
-        assert np.isclose(downwind_lats[0], era_lat, atol=0.1)
-    
-    def test_starting_point_is_era_gridpoint(self):
-        """Test that first point is the ERA gridpoint."""
-        era_lat = 46.5
-        era_lon = 11.0
-        
-        downwind_lats, downwind_lons = wind._get_downwind_points(
-            era_lat, era_lon, 0.0, range_km=10
-        )
-        
-        # First point should be the ERA gridpoint
-        assert np.isclose(downwind_lats[0], era_lat)
-        assert np.isclose(downwind_lons[0], era_lon)
-    
-    def test_distance_increases_monotonically(self):
-        """Test that distance increases monotonically along points."""
-        downwind_lats, downwind_lons = wind._get_downwind_points(
-            46.0, 10.5, 0.0, range_km=10
-        )
-        
-        # Calculate distances from first point
-        distances = np.sqrt(
-            (downwind_lats - downwind_lats[0])**2 + 
-            (downwind_lons - downwind_lons[0])**2
-        )
-        
-        # Distances should increase monotonically
-        assert np.all(np.diff(distances) >= 0)
-    
-    def test_different_range_values(self):
-        """Test with different range_km values."""
-        era_lat = 46.0
-        era_lon = 10.5
-        
-        points_10km = wind._get_downwind_points(era_lat, era_lon, 0.0, range_km=10)
-        points_20km = wind._get_downwind_points(era_lat, era_lon, 0.0, range_km=20)
-        
-        # Larger range should have larger maximum distance
-        dist_10 = np.sqrt(
-            (points_10km[0][-1] - points_10km[0][0])**2 + 
-            (points_10km[1][-1] - points_10km[1][0])**2
-        )
-        dist_20 = np.sqrt(
-            (points_20km[0][-1] - points_20km[0][0])**2 + 
-            (points_20km[1][-1] - points_20km[1][0])**2
-        )
-        
-        assert dist_20 > dist_10
-
-
-class TestFindHighestTerrainDownwind:
-    """Tests for _find_highest_terrain_downwind function."""
-    
-    @pytest.fixture
-    def sample_terrain_dataset(self):
-        """Create a sample terrain dataset."""
-        lats = np.linspace(47.5, 45.5, 100)
-        lons = np.linspace(9.5, 12.5, 150)
-        
-        # Create synthetic mountain-like terrain
-        lon_grid, lat_grid = np.meshgrid(lons, lats)
-        elevation = (
-            2000 * np.exp(-((lon_grid - 10.5)**2 + (lat_grid - 46.5)**2) / 0.01) + 500
-        )
-        
-        ds = xr.Dataset(
-            {
-                'elevation': (['latitude', 'longitude'], elevation),
-                'aspect_deg': (['latitude', 'longitude'], np.random.rand(100, 150) * 360),
-            },
-            coords={
-                'latitude': lats,
-                'longitude': lons,
-            }
-        )
-        return ds
-    
-    def _create_interpolators(self, dataset):
-        """Helper method to create interpolators from dataset."""
-        lats = dataset.latitude.values
-        lons = dataset.longitude.values
-        elev = dataset['elevation'].values
-        aspect = dataset['aspect_deg'].values
-        
-        interp_elev = RegularGridInterpolator(
-            (lats, lons), elev, bounds_error=False, fill_value=np.nan
-        )
-        interp_aspect = RegularGridInterpolator(
-            (lats, lons), aspect, bounds_error=False, fill_value=np.nan
-        )
-        return interp_elev, interp_aspect
-    
-    def test_terrain_found_above_level(self, sample_terrain_dataset):
-        """Test that terrain is found when above pressure level."""
-        # Create downwind points in area with high terrain
-        downwind_lats = np.linspace(46.5, 46.0, 50)
-        downwind_lons = np.linspace(10.5, 11.0, 50)
-        
-        pressure_level_height = 1000  # meters
-        
-        interp_elev, interp_aspect = self._create_interpolators(sample_terrain_dataset)
-        
-        terrain_height, terrain_aspect = wind._find_highest_terrain_downwind(
-            downwind_lats, downwind_lons, interp_elev, interp_aspect, pressure_level_height
-        )
-        
-        # Should find terrain
-        assert not np.isnan(terrain_height)
-        assert not np.isnan(terrain_aspect)
-        assert terrain_height > pressure_level_height
-    
-    def test_terrain_not_found_below_level(self, sample_terrain_dataset):
-        """Test that no terrain is found when all below pressure level."""
-        # Create downwind points in area with low terrain
-        downwind_lats = np.linspace(45.0, 45.1, 50)
-        downwind_lons = np.linspace(9.5, 9.6, 50)
-        
-        pressure_level_height = 5000  # meters (very high)
-        
-        interp_elev, interp_aspect = self._create_interpolators(sample_terrain_dataset)
-        
-        terrain_height, terrain_aspect = wind._find_highest_terrain_downwind(
-            downwind_lats, downwind_lons, interp_elev, interp_aspect, pressure_level_height
-        )
-        
-        # Should not find terrain
-        assert np.isnan(terrain_height)
-        assert np.isnan(terrain_aspect)
-    
-    def test_terrain_aspect_in_valid_range(self, sample_terrain_dataset):
-        """Test that aspect is in valid range when terrain is found."""
-        downwind_lats = np.linspace(46.5, 46.0, 50)
-        downwind_lons = np.linspace(10.5, 11.0, 50)
-        
-        interp_elev, interp_aspect = self._create_interpolators(sample_terrain_dataset)
-        
-        terrain_height, terrain_aspect = wind._find_highest_terrain_downwind(
-            downwind_lats, downwind_lons, interp_elev, interp_aspect, 1000.0
-        )
-        
-        if not np.isnan(terrain_aspect):
-            assert 0 <= terrain_aspect <= 360
 
 
 class TestComputeWindTerrainInteraction:

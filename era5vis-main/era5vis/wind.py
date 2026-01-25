@@ -21,89 +21,6 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 G = 9.80665  # Standard gravity (m/s²)
 
 
-def _get_downwind_points(era_lat, era_lon, wind_dir, range_km=10):
-    """
-    Generate points in a line downwind from ERA gridpoint.
-    
-    Parameters
-    ----------
-    era_lat : float
-        Latitude of ERA gridpoint (degrees)
-    era_lon : float
-        Longitude of ERA gridpoint (degrees)
-    wind_dir : float
-        Wind direction in degrees
-    range_km : float
-        Search range in kilometers
-        
-    Returns
-    -------
-    downwind_lats : np.ndarray
-        1D array of latitudes
-    downwind_lons : np.ndarray
-        1D array of longitudes
-    """
-    # Generate points along the downwind direction
-    downwind_dir = int(wind_dir) + 180  # Opposite direction
-    
-    n_points = max(2, int(range_km * 2))  # Number of sample points (at least 2)
-    max_dist_m = range_km * 1000 
-    distances = np.linspace(0, max_dist_m, n_points)
-    
-    # Use simple lat/lon offset (good approx. for small distances)
-    # 1 degree latitude ≈ 111 km
-    # 1 degree longitude ≈ 111 * cos(lat) km
-    lat_offset = (distances / 111000) * np.sin(np.radians(downwind_dir))
-    lon_offset = (distances / (111000 * np.cos(np.radians(era_lat)))) * np.cos(np.radians(downwind_dir))
-    
-    downwind_lats = era_lat + lat_offset
-    downwind_lons = era_lon + lon_offset
-    
-    return downwind_lats, downwind_lons
-
-
-def _find_highest_terrain_downwind(downwind_lats, downwind_lons, interp_elev, interp_aspect, pressure_level_height):
-    """
-    Find first terrain point downwind that's higher than pressure level.
-    
-    Parameters
-    ----------
-    downwind_lats : np.ndarray
-        Latitudes along downwind direction
-    downwind_lons : np.ndarray
-        Longitudes along downwind direction
-    interp_elev : RegularGridInterpolator
-        Terrain elevation interpolator
-    interp_aspect : RegularGridInterpolator
-        Terrain aspect interpolator
-    pressure_level_height : float
-        Height at pressure level (meters)
-        
-    Returns
-    -------
-    terrain_height : float or np.nan
-        Height of first terrain above pressure level
-    terrain_aspect : float or np.nan
-        Aspect of the first terrain point above pressure level
-    """
-    
-    points = np.stack([downwind_lats, downwind_lons], axis=-1)
-    elevations = interp_elev(points)
-    aspects = interp_aspect(points)
-    
-    # Find first point where terrain is higher than pressure level
-    above_level = elevations > pressure_level_height
-    
-    if np.any(above_level):
-        first_hit_idx = np.where(above_level)[0][0]
-        terrain_height = float(elevations[first_hit_idx])
-        terrain_aspect = float(aspects[first_hit_idx])
-    else:
-        terrain_height = np.nan
-        terrain_aspect = np.nan
-    
-    return terrain_height, terrain_aspect
-
 def calc_wind(u, v):
     """
     Compute wind direction in degrees from u and v components.
@@ -122,7 +39,6 @@ def calc_wind(u, v):
     """
 
     wind_dir = (np.degrees(np.arctan2(-u, -v)) + 360) % 360
-    wind_dir = wind_dir#.astype(np.uint16)
     wind_speed = np.round(np.sqrt(u**2 + v**2), 2)  
     return wind_dir, wind_speed
 
@@ -317,12 +233,8 @@ def compute_wind_terrain_interaction(
     Returns
     -------
     xr.Dataset
-        Input ERA5 dataset with added variables:
-        - wind_speed: Wind speed at each point (m/s)
-        - wind_direction: Wind direction where wind comes FROM (degrees)
-        - downwind_terrain_height: Height of first terrain above pressure level (m)
-        - perpendicular_wind_speed: Wind component perpendicular to terrain aspect (m/s)
     """
+
     # Input validation
     if 'u' not in era5_data or 'v' not in era5_data:
         raise ValueError("ERA5 dataset must contain 'u' and 'v' wind components")

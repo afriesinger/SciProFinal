@@ -62,7 +62,6 @@ def load_terrain_from_tif(
     # Identify no-data values: -32768 is standard sentinel for int16 GeoTIFFs
     # Also mark any elevation < 0m as no-data (water, artifacts, errors)
     no_data_mask = (terrain == -32768) | (terrain < 0)
-    no_data_count_initial = no_data_mask.sum()
     
     terrain = terrain.astype(np.float32)
     
@@ -81,8 +80,6 @@ def load_terrain_from_tif(
             can_fill = (weight_count > 0) & no_data_mask
             terrain[can_fill] = neighborhood_mean[can_fill]
             no_data_mask = no_data_mask & ~can_fill
-            
-            filled_this_iteration = can_fill.sum()
 
     terrain = np.round(terrain).astype(np.int32)
     
@@ -245,7 +242,6 @@ def load_terrain_aspect_dataset(
     import sys
     
     if cache_path is None:
-        # Use importlib.resources for Python 3.9+
         if sys.version_info >= (3, 9):
             from importlib.resources import files
             package_data = files('era5vis').joinpath('data/terrain_aspect_1km.nc')
@@ -305,7 +301,7 @@ def compute_terrain_intersection(
     # RegularGridInterpolator expects increasing coordinates
     interp_func = RegularGridInterpolator(
         (terrain_lats[::-1], terrain_lons),  # Flip lats to be increasing
-        terrain_elev[::-1, :],                # Flip data to match
+        terrain_elev[::-1, :],               # Flip data to match
         method='linear',
         bounds_error=False,
         fill_value=np.nan
@@ -319,9 +315,6 @@ def compute_terrain_intersection(
     # Interpolate terrain to ERA5 grid
     points = np.stack([lat_grid.ravel(), lon_grid.ravel()], axis=-1)
     terrain_on_era5_values = interp_func(points).reshape(lat_grid.shape)
-    
-    # Convert back to int32 to match terrain data type
-    #terrain_on_era5_values = np.round(np.nan_to_num(terrain_on_era5_values, nan=0)).astype(np.int32)
     
     terrain_on_era5 = xr.DataArray(
         terrain_on_era5_values,

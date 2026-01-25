@@ -419,11 +419,6 @@ def analyzeH(args):
         print(f'An unexpected error occurred: {e}')
         sys.exit(1)
 
-
-
-def era5vis_modellevel():
-    """Entry point for the era5vis_modellevel application script"""
-    modellevel(sys.argv[1:])
    
 def era5vis_download():
     """Entry point for the era5vis_download application script"""

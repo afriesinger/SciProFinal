@@ -440,3 +440,10 @@ era5vis-main/era5vis.egg-info/SOURCES.txt
 era5vis-main/era5vis.egg-info/top_level.txt
 era5vis-main/delete_me.nc
 era5vis-main/terrain_dataset.nc
+excluded/jupyter.ipynb
+excluded/terrain.ipynb
+excluded/visualization.ipynb
+excluded/wind.ipynb
+excluded/dokumentation/mockup.xopp
+excluded/dokumentation/ProjectProposal.odt
+excluded/dokumentation/ProjectProposal.pdf
