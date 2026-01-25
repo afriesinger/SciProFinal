@@ -436,23 +436,19 @@ def analyzeH(args):
         
         # Define area around longitude
         area = [lat_bounds['max'], lon - 0.5, lat_bounds['min'], lon + 0.5]
-        if ds_filename == None: 
-            file_dir = tempfile.NamedTemporaryFile(suffix='.nc', delete=True).name
-        else:
-            file_dir = ds_filename
         
         # Download ERA5 data
+        file_dir = tempfile.NamedTemporaryFile(suffix='.nc', delete=True).name
         era_ds = era5.load_era5_data(file_dir, date_time, area)
         era_ds['gph'] = dynamics.geopotential_height(era_ds['z'])
         
         # Add terrain data to ERA dataset
         ds = terrain_module.interpolate_to_grid(era_ds, terrain_ds)
-        #era5.compress_era(ds)
         ds = terrain_module.compute_terrain_intersection(ds, terrain_ds)
         ds['theta'] = dynamics.potential_temperature(ds['t'], ds['pressure_level']) #after interpolation
         
         # Compute wind interaction with terrain
-        #era5.compress_era(ds)
+        era5.compress_era(ds)
         ds = wind.compute_wind_terrain_interaction(ds, terrain_ds, range_km=3.0)
         
         # Compute Brunt-Väisälä frequency
@@ -460,7 +456,7 @@ def analyzeH(args):
         
         # Save dataset if filename provided
         if ds_filename:
-            ds.to_netcdf(ds_filename)
+            era5.safe_to_netcdf(ds,   ds_filename)
             print(f'Dataset saved to: {ds_filename}')
         
         # Visualize vertical cross-section

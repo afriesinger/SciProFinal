@@ -119,3 +119,96 @@ def test_compress_era(retrieve_param_level_from_ds):
     assert set(ds_compressed.dims) == set(ds_original.dims)
     assert set(ds_compressed.coords) == set(ds_original.coords)
     assert len(ds_compressed.data_vars) == len(ds_original.data_vars)
+
+
+def test_safe_to_netcdf(tmp_path):
+    """Test that safe_to_netcdf() correctly saves a dataset with proper dtypes"""
+    
+    # Load the test dataset
+    with xr.open_dataset(cfg.datafile) as ds:
+        ds_test = ds.copy()
+    
+    # Create output filename in temporary directory
+    output_file = tmp_path / "test_output.nc"
+    
+    # Save the dataset using safe_to_netcdf
+    era5.safe_to_netcdf(ds_test, str(output_file))
+    
+    # Verify the file was created
+    assert output_file.exists(), "Output NetCDF file was not created"
+    
+    # Load the saved file and verify its contents
+    with xr.open_dataset(str(output_file)) as ds_loaded:
+        # Check that expected variables have been converted to float32
+        dtype_map = {
+            "t": np.float32,
+            "u": np.float32,
+            "v": np.float32,
+            "wind_speed": np.float32,
+        }
+        
+        for var, expected_dtype in dtype_map.items():
+            if var in ds_loaded:
+                assert ds_loaded[var].dtype == expected_dtype, \
+                    f"Variable {var} has dtype {ds_loaded[var].dtype}, expected {expected_dtype}"
+        
+        # Verify that dimensions and coordinates are preserved
+        assert set(ds_loaded.dims) == set(ds_test.dims), \
+            "Dataset dimensions were not preserved"
+        assert set(ds_loaded.coords) == set(ds_test.coords), \
+            "Dataset coordinates were not preserved"
+
+
+def test_safe_to_netcdf_data_integrity(tmp_path):
+    """Test that safe_to_netcdf() preserves data values correctly"""
+    
+    # Create a minimal test dataset with known values
+    test_data = xr.Dataset({
+        "t": (("x", "y"), np.array([[1.5, 2.5], [3.5, 4.5]], dtype=np.float64)),
+        "u": (("x", "y"), np.array([[10.1, 20.2], [30.3, 40.4]], dtype=np.float64)),
+    })
+    
+    # Create output filename in temporary directory
+    output_file = tmp_path / "test_data_integrity.nc"
+    
+    # Save the dataset using safe_to_netcdf
+    era5.safe_to_netcdf(test_data, str(output_file))
+    
+    # Load the saved file
+    with xr.open_dataset(str(output_file)) as ds_loaded:
+        # Check that data values are preserved (within float32 precision)
+        np.testing.assert_array_almost_equal(
+            ds_loaded["t"].values,
+            np.array([[1.5, 2.5], [3.5, 4.5]], dtype=np.float32),
+            decimal=5,
+            err_msg="Temperature data was not preserved correctly"
+        )
+        
+        np.testing.assert_array_almost_equal(
+            ds_loaded["u"].values,
+            np.array([[10.1, 20.2], [30.3, 40.4]], dtype=np.float32),
+            decimal=5,
+            err_msg="Wind u component data was not preserved correctly"
+        )
+
+
+def test_safe_to_netcdf_does_not_modify_original(tmp_path):
+    """Test that safe_to_netcdf() does not modify the original dataset"""
+    
+    # Load the test dataset
+    with xr.open_dataset(cfg.datafile) as ds:
+        ds_original = ds.copy()
+    
+    # Store original dtypes
+    original_dtypes = {var: ds_original[var].dtype for var in ds_original.data_vars}
+    
+    # Create output filename in temporary directory
+    output_file = tmp_path / "test_no_modify.nc"
+    
+    # Save the dataset using safe_to_netcdf
+    era5.safe_to_netcdf(ds_original, str(output_file))
+    
+    # Verify original dataset was not modified
+    for var, original_dtype in original_dtypes.items():
+        assert ds_original[var].dtype == original_dtype, \
+            f"Original dataset variable {var} dtype was modified"

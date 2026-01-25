@@ -139,7 +139,8 @@ def load_era5_data(output_filename, start_date, area, end_date=None):
         
     if os.path.exists(output_filename):
         print(f"File '{output_filename}' exists. Skipping.")
-        return xr.open_dataset(output_filename)
+        with xr.open_dataset(output_filename) as ds:
+            return ds.copy()
 
     validate_inputs(area)
     
@@ -182,7 +183,8 @@ def load_era5_data(output_filename, start_date, area, end_date=None):
         },
         output_filename)
 
-    return xr.open_dataset(output_filename)
+    with xr.open_dataset(output_filename) as ds:
+        return ds.copy()
 
 def horiz_cross_section(param, lvl, time):
     """Extract a horizontal cross section from the ERA5 data.
@@ -255,12 +257,49 @@ def compress_era(dataset):
         "v": np.float16,
         "z": np.uint16,
         "gph": np.uint16, 
-        #'elevation': np.int16,
-        #'aspect_deg': np.int16,
-        #'slope': np.int16
+        'elevation': np.int16,
+        'aspect_deg': np.int16,
+        'slope': np.int16
     }
 
     for var, dtype in dtype_map.items():
         if var in dataset:
             dataset[var] = dataset[var].astype(dtype)
     return dataset
+
+def safe_to_netcdf(dataset, filename:str):
+
+    """
+    Save a compressed copy of the dataset to a NetCDF file.
+
+    Ensures that certain variables are converted back to float32 to 
+    fit to netCDF format.
+
+    Parameters
+    ----------
+    dataset: xarray.Dataset
+        ERA5 dataset to be saved
+    filename: str
+        Path to the NetCDF file to be written
+
+    Returns
+    -------
+    None
+
+    Author: Andreas Friesinger
+    """
+    dataset = dataset.copy()
+
+    dtype_map = {
+        # data variables
+        "t": np.float32,
+        "u": np.float32,
+        "v": np.float32,
+        "wind_speed": np.float32,
+    }
+
+    for var, dtype in dtype_map.items():
+        if var in dataset:
+            dataset[var] = dataset[var].astype(dtype)
+
+    dataset.to_netcdf(filename)

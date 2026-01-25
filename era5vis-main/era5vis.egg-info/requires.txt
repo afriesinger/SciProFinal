@@ -1,4 +1,0 @@
-cdsapi
-
-[test]
-pytest
