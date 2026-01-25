@@ -1,7 +1,7 @@
 """ Test functions for cli """
 
 import era5vis
-from era5vis.cli import modellevel, terrain
+from era5vis.cli import modellevel, terrain, analyzeH
 from unittest.mock import patch, MagicMock
 import pytest
 
@@ -304,3 +304,101 @@ class TestTerrainCLI:
             assert 'Loading terrain from:' in captured.out
             assert 'Target resolution:' in captured.out
             assert 'Terrain dataset saved to:' in captured.out
+
+
+class TestAnalyzeHCLI:
+    """Tests for era5vis_analyzeH CLI function"""
+    
+    def test_analyzeh_version(self, capsys):
+        """Test that -v and --version return version information"""
+        with pytest.raises(SystemExit):
+            analyzeH(['-v'])
+        captured = capsys.readouterr()
+        assert era5vis.__version__ in captured.out
+    
+    def test_analyzeh_missing_required_arguments(self, capsys):
+        """Test that missing required arguments raises an error"""
+        with pytest.raises(SystemExit):
+            analyzeH([])
+        captured = capsys.readouterr()
+        assert 'required' in captured.err.lower() or 'longitude' in captured.err.lower()
+    
+    def test_analyzeh_missing_longitude(self, capsys):
+        """Test that missing longitude argument raises an error"""
+        with pytest.raises(SystemExit):
+            analyzeH(['-dt', '2025-01-15-12'])
+        captured = capsys.readouterr()
+        assert 'required' in captured.err.lower() or 'longitude' in captured.err.lower()
+    
+    def test_analyzeh_missing_datetime(self, capsys):
+        """Test that missing datetime argument raises an error"""
+        with pytest.raises(SystemExit):
+            analyzeH(['-lon', '12.5'])
+        captured = capsys.readouterr()
+        assert 'required' in captured.err.lower() or 'datetime' in captured.err.lower()
+    
+    def test_analyzeh_invalid_datetime_format(self, capsys):
+        """Test that invalid datetime format raises an error"""
+        with pytest.raises(SystemExit):
+            analyzeH(['-lon', '12.5', '-dt', '2025-01-15'])  # Missing hour
+        captured = capsys.readouterr()
+        assert 'Invalid datetime format' in captured.out or 'error' in captured.out.lower()
+    
+    def test_analyzeh_help(self, capsys):
+        """Test that --help shows help message"""
+        with pytest.raises(SystemExit):
+            analyzeH(['--help'])
+        captured = capsys.readouterr()
+        assert 'Analyze geopotential height' in captured.out
+        assert 'longitude' in captured.out.lower()
+        assert 'datetime' in captured.out.lower()
+    
+    @patch('era5vis.cli.terrain_module.load_terrain_aspect_dataset')
+    @patch('era5vis.cli.era5.load_era5_data')
+    @patch('era5vis.cli.visualization.create_plot')
+    def test_analyzeh_invalid_longitude(self, mock_plot, mock_load_era5, mock_load_terrain, capsys):
+        """Test that longitude outside terrain bounds raises an error"""
+        import xarray as xr
+        import numpy as np
+        
+        # Create mock terrain dataset with specific bounds
+        mock_terrain = xr.Dataset({
+            'elevation': (['latitude', 'longitude'], np.ones((10, 10))),
+        }, coords={
+            'latitude': np.linspace(47, 46, 10),
+            'longitude': np.linspace(10, 11, 10),  # Bounds: [10, 11]
+        })
+        mock_load_terrain.return_value = mock_terrain
+        
+        # Try longitude outside bounds
+        with pytest.raises(SystemExit):
+            analyzeH(['-lon', '5.0', '-dt', '2025-01-15-12'])  # 5.0 is outside [10, 11]
+        captured = capsys.readouterr()
+        assert 'out of terrain bounds' in captured.out or 'Error' in captured.out
+    
+    @patch('era5vis.cli.terrain_module.load_terrain_aspect_dataset')
+    @patch('era5vis.cli.era5.load_era5_data')
+    @patch('era5vis.cli.visualization.create_plot')
+    def test_analyzeh_date_too_far_in_future(self, mock_plot, mock_load_era5, mock_load_terrain, capsys):
+        """Test that date beyond ERA5 availability raises an error"""
+        import datetime
+        import xarray as xr
+        import numpy as np
+        
+        # Create mock terrain dataset
+        mock_terrain = xr.Dataset({
+            'elevation': (['latitude', 'longitude'], np.ones((10, 10))),
+        }, coords={
+            'latitude': np.linspace(47, 46, 10),
+            'longitude': np.linspace(10, 11, 10),
+        })
+        mock_load_terrain.return_value = mock_terrain
+        
+        # Try future date (beyond 3 days from now)
+        future_date = (datetime.datetime.now() + datetime.timedelta(days=10)).strftime('%Y-%m-%d-%H')
+        with pytest.raises(SystemExit):
+            analyzeH(['-lon', '10.5', '-dt', future_date])
+        captured = capsys.readouterr()
+        assert 'out of ERA5 data bounds' in captured.out or 'Error' in captured.out
+
+

@@ -12,6 +12,7 @@ import argparse
 import xarray as xr
 import numpy as np
 import tempfile
+import os
 from era5vis import terrain as terrain_module
 from era5vis import era5
 from era5vis import visualization
@@ -209,6 +210,12 @@ def terrain(args):
     )
     
     parser.add_argument(
+        '-o', '--output',
+        metavar='PATH',
+        help='Output path for terrain dataset (default: terrain_dataset.nc)'
+    )
+    
+    parser.add_argument(
         '-v', '--version',
         action='version',
         version=f'era5vis_terrain {era5vis.__version__}'
@@ -225,6 +232,7 @@ def terrain(args):
         resolution_km = parsed_args.resolution
         quiet = parsed_args.quiet
         force = parsed_args.force
+        output_path = parsed_args.output
         
         # Helper function to print only if not quiet
         def log(msg):
@@ -284,7 +292,8 @@ def terrain(args):
             
             # Save terrain dataset
             import xarray as xr
-            output_path = 'terrain_dataset.nc'
+            if output_path is None:
+                output_path = 'terrain_dataset.nc'
             terrain_ds.to_netcdf(output_path)
             log(f'Terrain dataset saved to: {output_path}')
         
@@ -430,7 +439,7 @@ def analyzeH(args):
         
         # Validate date bounds
         era_time_bounds = {'earliest': datetime.datetime(1940, 1, 1, 0),
-                          'latest': datetime.datetime.now() - datetime.timedelta(days=3)}
+                          'latest': datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(days=3)}
         if date_time < era_time_bounds['earliest'] or date_time > era_time_bounds['latest']:
             raise ValueError(f"Date {date_time} out of ERA5 data bounds [{era_time_bounds['earliest']}, {era_time_bounds['latest']}] (3 days ago)")
         
