@@ -625,3 +625,44 @@ class TestTerrainIntegration:
         """Test that gravity constant is properly defined."""
         assert terrain.G > 0
         assert 9 < terrain.G < 10  # Reasonable gravity value
+    
+    def test_crop_terrain(self):
+        """Test crop_terrain function."""
+        # Create a target dataset (ERA5-like with (time, pressure, lat, lon))
+        target_ds = xr.Dataset(
+            {
+                'gph': (['valid_time', 'pressure_level', 'latitude', 'longitude'],
+                        np.random.randn(2, 3, 5, 5))
+            },
+            coords={
+                'valid_time': np.array(['2025-12-24', '2025-12-25'], dtype='datetime64[D]'),
+                'pressure_level': [1000, 850, 700],
+                'latitude': np.linspace(46.2, 46.8, 5),
+                'longitude': np.linspace(10.2, 10.8, 5),
+            }
+        )
+        
+        # Create a larger terrain dataset
+        terrain_ds = xr.Dataset(
+            {
+                'elevation': (['latitude', 'longitude'],
+                              np.random.randint(500, 3000, (20, 20)))
+            },
+            coords={
+                'latitude': np.linspace(47.0, 46.0, 20),
+                'longitude': np.linspace(10.0, 11.0, 20),
+            }
+        )
+        
+        # Crop terrain to target bounds
+        cropped = terrain.crop_terrain(target_ds, terrain_ds)
+        
+        # Verify cropped dataset has correct bounds
+        assert cropped.latitude.min() >= target_ds.latitude.min() - 0.01
+        assert cropped.latitude.max() <= target_ds.latitude.max() + 0.01
+        assert cropped.longitude.min() >= target_ds.longitude.min() - 0.01
+        assert cropped.longitude.max() <= target_ds.longitude.max() + 0.01
+        
+        # Verify it's smaller than the original terrain dataset
+        assert cropped.sizes['latitude'] < terrain_ds.sizes['latitude']
+        assert cropped.sizes['longitude'] < terrain_ds.sizes['longitude']

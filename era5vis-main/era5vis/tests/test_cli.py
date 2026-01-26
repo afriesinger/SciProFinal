@@ -303,7 +303,7 @@ class TestAnalyzeHCLI:
         with pytest.raises(SystemExit):
             analyzeH(['--help'])
         captured = capsys.readouterr()
-        assert 'Analyze geopotential height' in captured.out
+        assert 'Analyze' in captured.out
         assert 'longitude' in captured.out.lower()
         assert 'datetime' in captured.out.lower()
     

@@ -303,7 +303,8 @@ def plot_vertical_crosssection(args):
 
 ## The main logic!
 def analyzeH(args):
-    """The actual era5vis_analyzeH command line tool.
+    """The era5vis_analyzeH command line tool. Analyze the non-dimensional
+    mountain height H including terrain interaction and wind effects.
 
     Parameters
     ----------
@@ -315,7 +316,7 @@ def analyzeH(args):
     
     parser = argparse.ArgumentParser(
         prog='era5vis_analyzeH',
-        description='Analyze geopotential height with terrain interaction and wind effects'
+        description='Analyze the non-dimensional mountain height H including terrain interaction.'
     )
     
     parser.add_argument(
