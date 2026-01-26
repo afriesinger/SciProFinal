@@ -137,8 +137,10 @@ def vertical_crosssection(ds_crosssec, terrain_p, timestamp, lon, filepath=None)
     """
     H_masked = ds_crosssec['H_masked']
     H_color_masked = ds_crosssec['H_color_masked']
-    U = ds_crosssec['u']
-    V = ds_crosssec['v']
+
+    # rotate wind so direction aligns with cross-section
+    U_rotated = ds_crosssec['v'] * (-1)
+    V_rotated = ds_crosssec['u']
     
     # create color map
     color_map = {
@@ -167,8 +169,8 @@ def vertical_crosssection(ds_crosssec, terrain_p, timestamp, lon, filepath=None)
     stepsize = 8
     ax.barbs(lat[::, ::stepsize], 
              p[::, ::stepsize], 
-             V.values[::, ::stepsize], 
-             U.values[::, ::stepsize],
+             U_rotated.values[::, ::stepsize], 
+             V_rotated.values[::, ::stepsize],
              length=5, barbcolor='darkgrey')
 
     # plot terrain
@@ -220,6 +222,7 @@ def create_plot(ds, lon, start_lat=45.5, end_lat=47.8, filepath=None):
     
     # plot vertical crosssection
     vertical_crosssection(ds_crosssec, terrain_p, timestamp, lon, filepath=filepath)
+
 
 
 
