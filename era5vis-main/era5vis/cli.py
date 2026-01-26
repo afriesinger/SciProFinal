@@ -64,8 +64,11 @@ def download(args):
 
     if len(args) == 0 or args[0] in ['-h', '--help']:
         print(HELP_DOWNLOAD)
+        sys.exit(0)
+        
     elif args[0] in ['-v', '--version']:
         print('era5vis_download version: ' + era5vis.__version__)
+        sys.exit(0)
     # Individual parameter check
     elif ('-o' in args) and ('-s' in args) and ('-a' in args):
         try:
@@ -89,11 +92,13 @@ def download(args):
             print('Error: A flag was provided but no value followed it.')
         except ValueError as e:
             print(f'Error: Invalid input format. {e}')
+            sys.exit(1)
         except Exception as e:
             print(f'An unexpected error occurred: {e}')
     else:
         print('era5vis_download: command not understood or mandatory arguments missing.'
               'Type "era5vis_download --help" for usage information.')
+        sys.exit(1)
 
 def terrain(args):
     """The actual era5vis_terrain command line tool.
