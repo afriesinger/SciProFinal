@@ -21,6 +21,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 
+import wind
+
 
 
 # needed functions
@@ -138,9 +140,15 @@ def vertical_crosssection(ds_crosssec, terrain_p, timestamp, lon, filepath=None)
     H_masked = ds_crosssec['H_masked']
     H_color_masked = ds_crosssec['H_color_masked']
 
-    # rotate wind so direction aligns with cross-section
-    U_rotated = ds_crosssec['u']
-    V_rotated = ds_crosssec['v']
+    # rotate wind barbs +90° so direction aligns with cross-section
+    wind_dir, wind_speed = wind.calc_wind(ds_crosssec['u'], ds_crosssec['v'])
+
+    wind_dir_rotated = (wind_dir + 90) % 360
+
+    theta = np.deg2rad(wind_dir_rotated)
+
+    U_rotated = -wind_speed * np.sin(theta)
+    V_rotated = -wind_speed * np.cos(theta)
     
     # create color map
     color_map = {
@@ -222,6 +230,7 @@ def create_plot(ds, lon, start_lat=45.5, end_lat=47.8, filepath=None):
     
     # plot vertical crosssection
     vertical_crosssection(ds_crosssec, terrain_p, timestamp, lon, filepath=filepath)
+
 
 
 
