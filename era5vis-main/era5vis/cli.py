@@ -257,6 +257,8 @@ def plot_vertical_crosssection(args):
     ----------
     args: list
         output of sys.args[1:]
+
+    Author: Anna Buchhauser
     """
 
     if '--input' in args: 
