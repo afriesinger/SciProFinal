@@ -387,7 +387,7 @@ def analyzeH(args):
             raise ValueError(f"Date {date_time} out of ERA5 data bounds [{era_time_bounds['earliest']}, {era_time_bounds['latest']}] (3 days ago)")
         
         # Define area around longitude
-        area = [lat_bounds['max'], lon - 0.5, lat_bounds['min'], lon + 0.5]
+        area = [lat_bounds['min'], lon - 0.5, lat_bounds['max'], lon + 0.5]
         
         # Download ERA5 data
         file_dir = tempfile.NamedTemporaryFile(suffix='.nc', delete=True).name

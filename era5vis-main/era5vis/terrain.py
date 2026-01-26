@@ -346,6 +346,7 @@ def crop_terrain(target_ds, terrain_dataset):
     """
     Crop a terrain dataset to a target dataset's bounds.
 
+    },
     Parameters
     ----------
     target_ds : xr.Dataset
