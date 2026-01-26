@@ -186,33 +186,6 @@ def load_era5_data(output_filename, start_date, area, end_date=None):
     with xr.open_dataset(output_filename) as ds:
         return ds.copy()
 
-def horiz_cross_section(param, lvl, time):
-    """Extract a horizontal cross section from the ERA5 data.
-    
-    Parameters
-    ----------
-    param: str
-        ERA5 variable
-    lvl : integer
-        model pressure level (hPa)
-    time : str or integer
-        time string or time index
-
-    Returns
-    -------
-    da: xarray.DataArray
-        2D DataArray of param
-    """
-
-    # use either sel or sel depending on the type of time (index or date format)
-    check_data_availability(param, level=lvl, time=time)
-    
-    with xr.open_dataset(cfg.datafile).load() as ds:
-        if isinstance(time, str):
-            da = ds[param].sel(pressure_level=lvl).sel(valid_time=time)
-        else:
-            da = ds[param].sel(pressure_level=lvl).isel(valid_time=time)
-    return da
 
 if __name__ == "__main__": 
     if len(sys.argv) < 7:
