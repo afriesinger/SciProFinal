@@ -362,6 +362,7 @@ def analyzeH(args):
         datetime_str = parsed_args.datetime
         plot_filename = parsed_args.plot_filename
         ds_filename = parsed_args.ds_filename
+        boundary_box = 0.5
         
         
         # Parse datetime
@@ -373,7 +374,8 @@ def analyzeH(args):
         
         # Load terrain dataset
         terrain_ds = terrain_module.load_terrain_aspect_dataset()
-        lon_bounds = {'min': terrain_ds['longitude'].min().item(), 'max': terrain_ds['longitude'].max().item()}
+        lon_bounds = {'min': terrain_ds['longitude'].min().item()-boundary_box, 
+                      'max': terrain_ds['longitude'].max().item()+boundary_box}
         lat_bounds = {'min': terrain_ds['latitude'].min().item(), 'max': terrain_ds['latitude'].max().item()}
         
         # Validate longitude bounds
@@ -387,7 +389,7 @@ def analyzeH(args):
             raise ValueError(f"Date {date_time} out of ERA5 data bounds [{era_time_bounds['earliest']}, {era_time_bounds['latest']}] (3 days ago)")
         
         # Define area around longitude
-        area = [lat_bounds['min'], lon - 0.5, lat_bounds['max'], lon + 0.5]
+        area = [lat_bounds['min'], lon - boundary_box, lat_bounds['max'], lon + boundary_box]
         
         # Download ERA5 data
         file_dir = tempfile.NamedTemporaryFile(suffix='.nc', delete=True).name
