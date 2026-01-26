@@ -290,7 +290,7 @@ def plot_vertical_crosssection(args):
 
         try:
             input_ds = xr.open_dataset(input_filepath)
-            visualization.plot_vertical_crosssection(
+            visualization.create_plot(
                 input_ds, lon, start_lat=start_lat, end_lat=end_lat
             )
         except Exception as e:
