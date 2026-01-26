@@ -64,6 +64,8 @@ era5vis_terrain -help
 
 Retrieve ERA5 datasets directly from the Copernicus Data Store (CDS). Requires CDS credentials to be configured.
 
+To download a single snapshot of weather data (Temperature, Wind, and Geopotential) for a specific area in the Alps, use example: era5vis_download -o my_data.nc -s 2025-01-14-12 -a 47.5 10.5 46.5 11.5. 
+
 ```bash
 era5vis_download -h
 ```
