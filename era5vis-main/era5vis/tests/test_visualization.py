@@ -153,8 +153,10 @@ def mockup_masked_data_crosssec():
 
     return ds_crosssec
     
-def test_vertical_crosssection(mockup_terrain_p, mockup_masked_data_crosssec):
+def test_vertical_crosssection(mockup_terrain_p, mockup_masked_data_crosssec, monkeypatch):
     """Tests if figure is not empty and saved"""
+    #replace plt.show to avoid displaying the plot during testing
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: None)
     
     filepath =  Path('test.png')
     
