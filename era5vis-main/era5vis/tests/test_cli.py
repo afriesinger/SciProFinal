@@ -1,13 +1,14 @@
 """ Test functions for cli """
 
 """ 
-Author: Andreas Friesinger
+Author: Andreas Friesinger, Lawrence Ansu Mensah
 Date: 2026-01-23
 """
 
 from unittest.mock import patch, MagicMock
 import era5vis
-from era5vis.cli import terrain, analyzeH
+import datetime
+from era5vis.cli import terrain, analyzeH, download
 import pytest
 
 
@@ -354,4 +355,58 @@ class TestAnalyzeHCLI:
         captured = capsys.readouterr()
         assert 'out of ERA5 data bounds' in captured.out or 'Error' in captured.out
 
+class TestDownloadCLI:
+    """Tests for era5vis_download CLI function"""
 
+    def test_download_version(self, capsys):
+        """Test that -v returns version and exits """
+        with pytest.raises(SystemExit):
+            download(['-v'])
+        captured = capsys.readouterr()
+        assert era5vis.__version__ in captured.out
+
+    def test_download_help(self, capsys):
+        """Verify that --help shows usage instructions and exits properly"""
+        with pytest.raises(SystemExit):
+            download(['--help'])
+        captured = capsys.readouterr()
+        assert 'Usage:' in captured.out
+        assert '-o, --output' in captured.out
+        assert '-a, --area' in captured.out
+        
+
+    def test_download_missing_mandatory_args(self, capsys):
+        """Verify that the tool exits with an error if mandatory flags are missing"""
+        with pytest.raises(SystemExit):
+            download(['-o', 'test.nc', '-s', '2025-01-01-12'])
+        captured = capsys.readouterr()
+        assert 'mandatory arguments missing' in captured.out
+
+    def test_download_invalid_date_format(self, capsys):
+        """Verify that an incorrect date string format triggers an error and exits"""
+        test_args = ['-o', 'test.nc', '-s', '2025.01.01.12', '-a', '47', '10', '46', '11']
+        with pytest.raises(SystemExit):
+            download(test_args)
+        captured = capsys.readouterr()
+        assert 'Error: Invalid input format' in captured.out
+
+    @patch('era5vis.era5.load_era5_data')
+    def test_download_success(self, mock_load_era5):
+        """Verify that valid CLI arguments correctly trigger the ERA5 data loading process"""
+        # mock the actual download function to avoid hitting the Copernicus servers
+        mock_load_era5.return_value = MagicMock()
+        
+        # define a complete set of valid mandatory arguments
+        test_args = ['-o', 'output.nc', '-s', '2025-01-15-12', '-a', '47', '10', '46', '11']
+        
+        # execute the download tool with these arguments
+        download(test_args)
+
+        #confirm the underlying ERA5 logic was actually called
+        assert mock_load_era5.called
+        
+        # verify the CLI correctly converted strings into the required Python objects
+        call_args = mock_load_era5.call_args[0]
+        assert call_args[0] == 'output.nc'
+        assert isinstance(call_args[1], datetime.datetime)
+        assert call_args[2] == [47.0, 10.0, 46.0, 11.0]
