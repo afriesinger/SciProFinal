@@ -189,6 +189,7 @@ def vertical_crosssection(ds_crosssec, terrain_p, timestamp, lon, filepath=None)
     ]
 
     ax.legend(handles=legend_elements, loc='lower right')
+    plt.show()
 
     # save plot if requested
     if filepath is not None:
@@ -219,5 +220,6 @@ def create_plot(ds, lon, start_lat=45.5, end_lat=47.8, filepath=None):
     
     # plot vertical crosssection
     vertical_crosssection(ds_crosssec, terrain_p, timestamp, lon, filepath=filepath)
+
 
 
