@@ -21,7 +21,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 
-import wind
+from era5vis import wind
 
 
 

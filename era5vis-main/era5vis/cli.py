@@ -417,6 +417,7 @@ def analyzeH(args):
             print(f'Dataset saved to: {ds_filename}')
         
         # Visualize vertical cross-section
+        print('Plotting the result. Close the image window to continue...')
         visualization.create_plot(ds, lon, start_lat=lat_bounds['min'], end_lat=lat_bounds['max'], 
                                 filepath=plot_filename)
         
