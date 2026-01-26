@@ -89,6 +89,10 @@ era5vis_analyzeH -lon 12 -dt 2025-01-01-12
 era5vis_analyzeH -lon 11.36 -dt 2026-01-20-16 -plot_filename analysis.png
 ```
 
+**Tipps for usage:**
+The concept of non dimensional mountain height works best in stable stratified environments. Therefor it is quite difficult to find a real case scenario that fits perfect. There is further development ongoing on handling also convective situations and give a better overview how the flow interacts with the terrain. 
+
+
 ## Testing
 
 Run the comprehensive test suite with coverage reporting:
