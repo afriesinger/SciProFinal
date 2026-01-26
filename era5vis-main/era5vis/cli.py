@@ -393,6 +393,8 @@ def analyzeH(args):
         file_dir = tempfile.NamedTemporaryFile(suffix='.nc', delete=True).name
         era_ds = era5.load_era5_data(file_dir, date_time, area)
         era_ds['gph'] = dynamics.geopotential_height(era_ds['z'])
+
+        print('Download successful. Processing data... (This takes a few moments)')
         
         # Add terrain data to ERA dataset
         ds = terrain_module.interpolate_to_grid(era_ds, terrain_ds)

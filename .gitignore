@@ -448,3 +448,5 @@ excluded/dokumentation/mockup.xopp
 excluded/dokumentation/ProjectProposal.odt
 excluded/dokumentation/ProjectProposal.pdf
 terrain.png
+era5vis-main/era5vis.egg-info/entry_points.txt
+era5vis-main/era5vis.egg-info/requires.txt
